@@ -1,0 +1,26 @@
+# Python
+*.pyc
+__pycache__/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+*.log
+*.log*
+
+# IDE
+.DS_Store
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Claude Code
+.claude

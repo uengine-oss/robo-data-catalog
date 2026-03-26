@@ -1,0 +1,29 @@
+# ROBO Data Catalog 의존성
+# ==========================
+
+# 웹 프레임워크
+fastapi==0.115.12
+uvicorn==0.34.0
+
+# 비동기 I/O
+aiohttp>=3.9.0
+aiofiles==24.1.0
+
+# LLM 통합 (메타데이터 보강)
+langchain>=1.2.4
+langchain-openai>=0.3.12
+langchain-community>=0.3.0
+openai>=1.70.0
+tiktoken>=0.5.0
+
+# 데이터베이스
+neo4j==5.28.1
+
+# 유틸리티
+numpy>=2.0.0
+pyyaml==6.0.1
+python-dotenv==1.0.1
+rapidfuzz>=3.0.0
+
+# SQL 파싱 (리니지 분석)
+lxml>=5.0.0
