@@ -445,3 +445,81 @@ async def delete_dw_star_schema(
     except Exception as e:
         logger.error("[API] DW 스타스키마 삭제 실패 | error=%s", e)
         raise HTTPException(500, _error_body(e))
+
+
+# =============================================================================
+# 메타데이터 보강 API
+# =============================================================================
+
+@router.post("/schema/enrich-metadata")
+async def enrich_metadata(request: Request):
+    """메타데이터 보강 (Text2SQL 기반 테이블/컬럼 설명 생성 + FK 추론)"""
+    body = await request.json()
+    datasource_name = body.get("datasource_name", "")
+    api_key = request.headers.get("OpenAI-Api-Key") or request.headers.get("X-API-Key") or ""
+
+    logger.info("[API] 메타데이터 보강 요청 | datasource=%s", datasource_name)
+
+    from service.metadata_enrichment_service import MetadataEnrichmentService
+    from openai import AsyncOpenAI
+    from client.neo4j_client import Neo4jClient
+    from config.settings import settings as _s
+
+    if not api_key:
+        api_key = _s.llm.api_key
+    if not api_key:
+        return {"message": "API 키 없음, 보강 생략", "enriched": 0}
+
+    text2sql_url = _s.metadata_enrichment.text2sql_api_url
+    if not text2sql_url:
+        return {"message": "TEXT2SQL_API_URL 미설정, 보강 생략", "enriched": 0}
+
+    client = Neo4jClient()
+    try:
+        openai_client = AsyncOpenAI(api_key=api_key)
+        service = MetadataEnrichmentService(
+            client=client,
+            openai_client=openai_client,
+            text2sql_base_url=text2sql_url,
+            datasource_name=datasource_name,
+        )
+
+        query = """
+            MATCH (t:Table)
+            WHERE t.description IS NULL OR t.description = '' OR t.description = 'N/A'
+            OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:Column)
+            RETURN t.name AS table_name, t.schema AS schema_name,
+                   collect({name: c.name, dtype: c.dtype}) AS columns
+        """
+        results = await client.execute_queries([query])
+        tables = results[0] if results else []
+
+        if not tables:
+            return {"message": "보강할 테이블 없음", "enriched": 0}
+
+        import aiohttp
+        enriched = 0
+        async with aiohttp.ClientSession() as session:
+            available = await service.check_text2sql_available(session)
+            if not available:
+                return {"message": "Text2SQL 서버 연결 불가", "enriched": 0}
+
+            for table in tables:
+                tname = table["table_name"]
+                sname = table["schema_name"] or "public"
+                cols = table["columns"]
+                sample_sql = f'SELECT * FROM "{sname}"."{tname}" LIMIT 10'
+                sample = await service.fetch_sample_data(session, sample_sql)
+                if not sample:
+                    continue
+                descs = await service.generate_descriptions_from_sample(tname, sname, sample, cols)
+                if descs:
+                    t_upd, c_upd = await service.update_descriptions_in_neo4j(tname, sname, descs)
+                    enriched += t_upd
+
+        return {"message": f"보강 완료: {enriched}개 테이블", "enriched": enriched}
+    except Exception as e:
+        logger.error("[API] 메타데이터 보강 실패 | error=%s", e)
+        raise HTTPException(500, _error_body(e))
+    finally:
+        await client.close()

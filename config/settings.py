@@ -26,6 +26,8 @@ class Neo4jConfig:
 
 @dataclass(frozen=True)
 class LLMConfig:
+    api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
+    model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "gpt-4.1"))
     embedding_model: str = field(default_factory=lambda: os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"))
 
 
@@ -44,11 +46,24 @@ class PathConfig:
 
 
 @dataclass(frozen=True)
+class MetadataEnrichmentConfig:
+    text2sql_api_url: str = field(default_factory=lambda: os.getenv("TEXT2SQL_API_URL", ""))
+    fk_inference_enabled: bool = field(default_factory=lambda: os.getenv("FK_INFERENCE_ENABLED", "true").lower() == "true")
+    fk_sample_size: int = field(default_factory=lambda: int(os.getenv("FK_SAMPLE_SIZE", "25")))
+    fk_similarity_threshold: float = field(default_factory=lambda: float(os.getenv("FK_SIMILARITY_THRESHOLD", "0.8")))
+    fk_match_ratio_threshold: float = field(default_factory=lambda: float(os.getenv("FK_MATCH_RATIO_THRESHOLD", "0.8")))
+    fk_concurrency: int = field(default_factory=lambda: int(os.getenv("FK_CONCURRENCY", "5")))
+    timeout_connect: int = field(default_factory=lambda: int(os.getenv("METADATA_TIMEOUT_CONNECT", "5")))
+    timeout_request: int = field(default_factory=lambda: int(os.getenv("METADATA_TIMEOUT_REQUEST", "30")))
+
+
+@dataclass(frozen=True)
 class CatalogConfig:
     neo4j: Neo4jConfig = field(default_factory=Neo4jConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
     batch: BatchConfig = field(default_factory=BatchConfig)
     path: PathConfig = field(default_factory=PathConfig)
+    metadata_enrichment: MetadataEnrichmentConfig = field(default_factory=MetadataEnrichmentConfig)
 
     version: str = "2.0.0"
     api_prefix: str = "/robo"
