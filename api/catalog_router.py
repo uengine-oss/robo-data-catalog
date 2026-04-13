@@ -141,6 +141,7 @@ async def analyze_lineage(body: LineageAnalyzeRequest):
             sql_content=body.sqlContent,
             file_name=body.fileName,
             dbms=body.dbms,
+            name_case=body.nameCaseOption,
         )
         logger.info("[API] 리니지 분석 완료 | lineages=%d", len(result["lineages"]))
         return result

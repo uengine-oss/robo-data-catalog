@@ -8,6 +8,7 @@ class LineageAnalyzeRequest(BaseModel):
     sqlContent: str
     fileName: str = ""
     dbms: str = "oracle"
+    nameCaseOption: str = "original"
 
 
 class SchemaTableInfo(BaseModel):

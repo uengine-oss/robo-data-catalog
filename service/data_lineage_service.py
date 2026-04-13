@@ -111,15 +111,17 @@ async def fetch_lineage_graph() -> dict:
 async def analyze_sql_lineage(
     sql_content: str,
     file_name: str = "",
-    dbms: str = "oracle"
+    dbms: str = "oracle",
+    name_case: str = "original",
 ) -> dict:
     """ETL 코드에서 데이터 리니지 추출 및 Neo4j 저장
-    
+
     Args:
         sql_content: SQL 소스 코드
         file_name: 파일명
         dbms: DBMS 타입
-        
+        name_case: 이름 대소문자 처리 (uppercase, lowercase, original)
+
     Returns:
         {"lineages": [...], "stats": {...}}
     """
@@ -127,6 +129,7 @@ async def analyze_sql_lineage(
         sql_content=sql_content,
         file_name=file_name,
         dbms=dbms,
+        name_case=name_case,
     )
     
     # 응답 변환

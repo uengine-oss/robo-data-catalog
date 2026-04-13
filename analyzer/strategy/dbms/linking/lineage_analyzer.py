@@ -404,6 +404,7 @@ async def analyze_lineage_from_sql(
     sql_content: str,
     file_name: str = "",
     dbms: str = "oracle",
+    name_case: str = "original",
 ) -> tuple[list[LineageInfo], dict]:
     """SQL 내용에서 리니지를 분석하고 Neo4j에 저장합니다.
 
@@ -411,6 +412,7 @@ async def analyze_lineage_from_sql(
         sql_content: SQL 소스 코드
         file_name: 파일명
         dbms: DBMS 타입
+        name_case: 이름 대소문자 처리 (uppercase, lowercase, original)
 
     Returns:
         (LineageInfo 리스트, 저장 통계)
@@ -424,7 +426,9 @@ async def analyze_lineage_from_sql(
     if lineage_list:
         client = Neo4jClient()
         try:
-            stats = await analyzer.save_lineage_to_neo4j(client, lineage_list, file_name)
+            stats = await analyzer.save_lineage_to_neo4j(
+                client, lineage_list, file_name, name_case=name_case,
+            )
         finally:
             await client.close()
     else:
