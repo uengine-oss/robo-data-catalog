@@ -22,10 +22,12 @@
                DELETE /schema/dw-tables/{cube_name}        DW 스타스키마 삭제
 """
 
+import json
 import logging
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from api.request_models import (
     LineageAnalyzeRequest,
     SchemaTableInfo,
@@ -37,14 +39,25 @@ from api.request_models import (
     ColumnDescriptionUpdateRequest,
     VectorizeRequest,
     DWStarSchemaRequest,
+    SampleContextRequest,
 )
+from client.neo4j_client import Neo4jClient
 from config.settings import settings
 from service import (
     graph_query_service,
-    schema_manage_service,
     data_lineage_service,
     dw_schema_service,
+    schema_query_service,
+    schema_edit_service,
+    schema_search_service,
 )
+from service.fk_inference_service import FkInferenceService
+from service.sample_context_service import SampleContextService
+from service.text2sql_client import Text2SqlClient
+
+
+def _ndjson(payload: dict) -> bytes:
+    return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
 
 router = APIRouter(prefix=settings.api_prefix)
 logger = logging.getLogger(__name__)
@@ -163,7 +176,7 @@ async def list_schema_tables(
     """테이블 목록 조회"""
     logger.info("[API] 테이블 목록 조회")
     try:
-        records = await schema_manage_service.fetch_schema_tables(search, schema, limit)
+        records = await schema_query_service.fetch_schema_tables(search, schema, limit)
         tables = [
             SchemaTableInfo(
                 name=r["name"],
@@ -190,7 +203,7 @@ async def get_table_columns(table_name: str, schema: Optional[str] = None):
         raise HTTPException(400, "schema 파라미터가 필요합니다.")
     logger.info("[API] 컬럼 조회 | table=%s", table_name)
     try:
-        records = await schema_manage_service.fetch_table_columns(table_name, schema)
+        records = await schema_query_service.fetch_table_columns(table_name, schema)
         columns = [
             SchemaColumnInfo(
                 name=r["name"],
@@ -221,7 +234,7 @@ async def get_table_references(
     logger.info("[API] 테이블 참조 조회 | table=%s | schema=%s | column=%s",
                 table_name, schema, column_name)
     try:
-        return await schema_manage_service.fetch_table_references(table_name, schema, column_name)
+        return await schema_query_service.fetch_table_references(table_name, schema, column_name)
     except Exception as e:
         logger.error("[API] 테이블 참조 조회 실패 | error=%s", e)
         raise HTTPException(500, _error_body(e))
@@ -232,7 +245,7 @@ async def get_procedure_statements(procedure_name: str, file_directory: Optional
     """프로시저의 모든 Statement와 AI 설명 조회"""
     logger.info("[API] Statement 조회 | procedure=%s", procedure_name)
     try:
-        records = await schema_manage_service.fetch_procedure_statements(procedure_name, file_directory)
+        records = await schema_query_service.fetch_procedure_statements(procedure_name, file_directory)
         return {"statements": records}
     except Exception as e:
         logger.error("[API] Statement 조회 실패 | error=%s", e)
@@ -244,7 +257,7 @@ async def list_schema_relationships():
     """테이블 관계 목록 조회"""
     logger.info("[API] 관계 조회")
     try:
-        records = await schema_manage_service.fetch_schema_relationships()
+        records = await schema_query_service.fetch_schema_relationships()
         return [
             SchemaRelationshipInfo(
                 from_table=r["from_table"],
@@ -268,7 +281,7 @@ async def add_schema_relationship(body: AddRelationshipRequest):
     """테이블 관계 추가"""
     logger.info("[API] 관계 추가 | %s -> %s", body.from_table, body.to_table)
     try:
-        return await schema_manage_service.create_schema_relationship(
+        return await schema_edit_service.create_schema_relationship(
             from_table=body.from_table,
             from_schema=body.from_schema,
             from_column=body.from_column,
@@ -295,7 +308,7 @@ async def remove_schema_relationship(
     """테이블 관계 삭제"""
     logger.info("[API] 관계 삭제 | %s.%s -> %s.%s", from_table, from_column, to_table, to_column)
     try:
-        return await schema_manage_service.delete_schema_relationship(
+        return await schema_edit_service.delete_schema_relationship(
             from_table, from_column, to_table, to_column
         )
     except Exception as e:
@@ -311,7 +324,7 @@ async def semantic_search_tables(request: Request, body: SemanticSearchRequest):
         raise HTTPException(400, "X-API-Key 헤더가 필요합니다.")
     logger.info("[API] 시멘틱 검색 요청 | query=%s", body.query[:50])
     try:
-        result = await schema_manage_service.search_tables_by_semantic(
+        result = await schema_search_service.search_tables_by_semantic(
             query=body.query, limit=body.limit, api_key=api_key,
         )
         logger.info("[API] 시멘틱 검색 완료 | results=%d", len(result))
@@ -337,7 +350,7 @@ async def update_table_description(
         raise HTTPException(400, "X-API-Key 헤더가 필요합니다.")
     logger.info("[API] 테이블 설명 업데이트 | table=%s | schema=%s", table_name, body.table_schema)
     try:
-        return await schema_manage_service.update_table_description(
+        return await schema_edit_service.update_table_description(
             table_name=table_name,
             schema=body.table_schema,
             description=body.description,
@@ -363,7 +376,7 @@ async def update_column_description(
         raise HTTPException(400, "X-API-Key 헤더가 필요합니다.")
     logger.info("[API] 컬럼 설명 업데이트 | table=%s | column=%s", table_name, column_name)
     try:
-        return await schema_manage_service.update_column_description(
+        return await schema_edit_service.update_column_description(
             table_name=table_name,
             table_schema=body.table_schema,
             column_name=column_name,
@@ -385,7 +398,7 @@ async def vectorize_schema(request: Request, body: VectorizeRequest):
         raise HTTPException(400, "X-API-Key 헤더가 필요합니다.")
     logger.info("[API] 스키마 벡터화 요청")
     try:
-        return await schema_manage_service.vectorize_schema_tables(
+        return await schema_search_service.vectorize_schema_tables(
             db_name=body.db_name,
             schema=body.table_schema,
             include_tables=body.include_tables,
@@ -449,78 +462,186 @@ async def delete_dw_star_schema(
 
 
 # =============================================================================
+# 샘플 컨텍스트 API — analyzer 가 분석 세션당 1회 호출
+# =============================================================================
+
+@router.post("/tables/sample-context")
+async def get_table_sample_context(body: SampleContextRequest):
+    """analyzer Phase 2 Linking 완료 후 식별 테이블명 batch 전달 → 매칭·샘플 반환.
+
+    응답 map:
+      { 요청 테이블명 원본: { resolved, score, columns, sample_rows } | null }
+    매칭 실패 → 값이 null.
+    """
+    logger.info(
+        "[API] 샘플 컨텍스트 | datasource=%s tables=%d",
+        body.datasource, len(body.table_names),
+    )
+    neo4j = Neo4jClient()
+    try:
+        text2sql = Text2SqlClient(
+            base_url=settings.metadata_enrichment.text2sql_api_url,
+            datasource=body.datasource,
+        )
+        service = SampleContextService(
+            neo4j_client=neo4j,
+            text2sql_client=text2sql,
+            concurrency=settings.metadata_enrichment.fk_concurrency,
+        )
+        result = await service.fetch(
+            datasource=body.datasource,
+            table_names=body.table_names,
+            sample_limit=body.sample_limit,
+            similarity_threshold=body.similarity_threshold,
+        )
+        resolved_count = sum(1 for v in result.values() if v is not None)
+        logger.info(
+            "[API] 샘플 컨텍스트 완료 | 매칭=%d/%d",
+            resolved_count, len(body.table_names),
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(400, _error_body(e))
+    except Exception as e:
+        logger.error("[API] 샘플 컨텍스트 실패 | error=%s", e)
+        raise HTTPException(500, _error_body(e))
+    finally:
+        await neo4j.close()
+
+
+# =============================================================================
 # 메타데이터 보강 API
 # =============================================================================
 
 @router.post("/schema/enrich-metadata")
 async def enrich_metadata(request: Request):
-    """메타데이터 보강 (Text2SQL 기반 테이블/컬럼 설명 생성 + FK 추론)"""
+    """메타데이터 보강 (스트리밍) — description 생성 + FK 추론.
+
+    응답: NDJSON (application/x-ndjson). 한 줄 = 한 이벤트 dict.
+    이벤트 종류:
+      - {event: start, phase: description, total: N}
+      - {event: table_done, i, total, table, description_persisted: bool}
+      - {event: phase_done, phase: description, enriched: N}
+      - {event: fk_query_start, schema, threshold, min_src_distinct}
+      - {event: fk_query_done, candidate_count}
+      - {event: fk_persisted, fk_to_column, fk_to_table}
+      - {event: complete, description_enriched, fk_persisted}
+      - {event: error, message} / {event: skip, reason}
+    """
     body = await request.json()
     datasource_name = body.get("datasource_name", "")
     api_key = request.headers.get("OpenAI-Api-Key") or request.headers.get("X-API-Key") or ""
 
-    logger.info("[API] 메타데이터 보강 요청 | datasource=%s", datasource_name)
+    logger.info("[API] 메타데이터 보강 요청(스트림) | datasource=%s", datasource_name)
 
-    from service.metadata_enrichment_service import MetadataEnrichmentService
+    import aiohttp
     from openai import AsyncOpenAI
-    from client.neo4j_client import Neo4jClient
-    from config.settings import settings as _s
+    from service.table_description_service import TableDescriptionService
 
     if not api_key:
-        api_key = _s.llm.api_key
-    if not api_key:
-        return {"message": "API 키 없음, 보강 생략", "enriched": 0}
+        api_key = settings.llm.api_key
 
-    text2sql_url = _s.metadata_enrichment.text2sql_api_url
-    if not text2sql_url:
-        return {"message": "TEXT2SQL_API_URL 미설정, 보강 생략", "enriched": 0}
+    text2sql_url = settings.metadata_enrichment.text2sql_api_url
 
-    client = Neo4jClient()
-    try:
-        openai_client = AsyncOpenAI(api_key=api_key)
-        service = MetadataEnrichmentService(
-            client=client,
-            openai_client=openai_client,
-            text2sql_base_url=text2sql_url,
-            datasource_name=datasource_name,
-        )
+    async def stream():
+        # ---- precondition checks ----
+        if not api_key:
+            yield _ndjson({"event": "skip", "reason": "API 키 없음, 보강 생략"})
+            return
+        if not text2sql_url:
+            yield _ndjson({"event": "skip", "reason": "TEXT2SQL_API_URL 미설정, 보강 생략"})
+            return
 
-        query = """
-            MATCH (t:Table)
-            WHERE t.description IS NULL OR t.description = '' OR t.description = 'N/A'
-            OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:Column)
-            RETURN t.name AS table_name, t.schema AS schema_name,
-                   collect({name: c.name, dtype: c.dtype}) AS columns
-        """
-        results = await client.execute_queries([query])
-        tables = results[0] if results else []
+        client = Neo4jClient()
+        try:
+            text2sql = Text2SqlClient(base_url=text2sql_url, datasource=datasource_name)
+            description_service = TableDescriptionService(
+                client=client, openai_client=AsyncOpenAI(api_key=api_key)
+            )
 
-        if not tables:
-            return {"message": "보강할 테이블 없음", "enriched": 0}
+            # 보강 대상 테이블 조회
+            tables_query = """
+                MATCH (t:Table)
+                WHERE t.description IS NULL OR t.description = '' OR t.description = 'N/A'
+                OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:Column)
+                RETURN t.name AS table_name, t.schema AS schema_name,
+                       collect({
+                         name: c.name,
+                         dtype: c.dtype,
+                         description: c.description
+                       }) AS columns
+            """
+            results = await client.execute_queries([tables_query])
+            tables = results[0] if results else []
 
-        import aiohttp
-        enriched = 0
-        async with aiohttp.ClientSession() as session:
-            available = await service.check_text2sql_available(session)
-            if not available:
-                return {"message": "Text2SQL 서버 연결 불가", "enriched": 0}
+            if not tables:
+                yield _ndjson({"event": "skip", "reason": "보강할 테이블 없음"})
+                return
 
-            for table in tables:
-                tname = table["table_name"]
-                sname = table["schema_name"] or "public"
-                cols = table["columns"]
-                sample_sql = f'SELECT * FROM "{sname}"."{tname}" LIMIT 10'
-                sample = await service.fetch_sample_data(session, sample_sql)
-                if not sample:
-                    continue
-                descs = await service.generate_descriptions_from_sample(tname, sname, sample, cols)
-                if descs:
-                    t_upd, c_upd = await service.update_descriptions_in_neo4j(tname, sname, descs)
-                    enriched += t_upd
+            # ---- Phase 1: description 생성 ----
+            yield _ndjson({"event": "start", "phase": "description", "total": len(tables)})
 
-        return {"message": f"보강 완료: {enriched}개 테이블", "enriched": enriched}
-    except Exception as e:
-        logger.error("[API] 메타데이터 보강 실패 | error=%s", e)
-        raise HTTPException(500, _error_body(e))
-    finally:
-        await client.close()
+            async with aiohttp.ClientSession() as session:
+                if not await text2sql.check_available(session):
+                    yield _ndjson({"event": "skip", "reason": "Text2SQL 서버 연결 불가"})
+                    return
+
+                enriched = 0
+                schemas_seen: set = set()
+
+                for i, table in enumerate(tables, start=1):
+                    tname = table["table_name"]
+                    sname = table["schema_name"] or "public"
+                    schemas_seen.add(sname)
+                    cols = table["columns"]
+                    persisted = False
+                    try:
+                        sample_sql = f'SELECT * FROM "{sname}"."{tname}" LIMIT 10'
+                        sample = await text2sql.fetch_rows(session, sample_sql)
+                        if sample:
+                            descs = await description_service.generate(tname, sname, sample, cols)
+                            if descs:
+                                t_upd, _ = await description_service.persist(tname, sname, descs)
+                                enriched += t_upd
+                                persisted = bool(t_upd)
+                    except Exception as e:
+                        # 한 테이블 실패가 전체 흐름을 막지 않음
+                        logger.warning("[ENRICH] %s 보강 실패: %s", tname, e)
+
+                    yield _ndjson({
+                        "event": "table_done",
+                        "i": i,
+                        "total": len(tables),
+                        "table": tname,
+                        "schema": sname,
+                        "description_persisted": persisted,
+                    })
+
+                yield _ndjson({
+                    "event": "phase_done",
+                    "phase": "description",
+                    "enriched": enriched,
+                })
+
+                # ---- Phase 2: FK 추론 ----
+                fk_service = FkInferenceService(neo4j_client=client, text2sql_client=text2sql)
+                fk_persisted_total = 0
+                for schema in sorted(schemas_seen):
+                    async for evt in fk_service.infer_and_persist(session, schema):
+                        if evt.get("event") == "fk_persisted":
+                            fk_persisted_total += int(evt.get("fk_to_column", 0))
+                        yield _ndjson(evt)
+
+                yield _ndjson({
+                    "event": "complete",
+                    "description_enriched": enriched,
+                    "fk_persisted": fk_persisted_total,
+                })
+
+        except Exception as e:
+            logger.error("[API] 메타데이터 보강 실패 | error=%s", e)
+            yield _ndjson({"event": "error", "message": f"{type(e).__name__}: {e}"})
+        finally:
+            await client.close()
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")

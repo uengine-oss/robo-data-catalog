@@ -110,3 +110,19 @@ class DWStarSchemaRequest(BaseModel):
     fact_table: DWFactTableInfo
     dimensions: List[DWDimensionInfo] = []
     create_embeddings: bool = True
+
+
+# =============================================================================
+# 샘플 컨텍스트 (analyzer 1회 요청 API)
+# =============================================================================
+
+class SampleContextRequest(BaseModel):
+    """analyzer → catalog batch 요청.
+
+    Phase 2 Linking 직후, analyzer 에서 식별된 모든 테이블명을 한 번에 전달.
+    응답 map 의 key = 여기 보낸 table_names 의 원본 값.
+    """
+    datasource: str = Field(..., min_length=1, description="MindsDB datasource 이름")
+    table_names: List[str] = Field(..., min_length=1, description="코드에서 추출한 테이블명 목록")
+    sample_limit: int = Field(default=5, ge=1, le=20, description="테이블당 샘플 행 수")
+    similarity_threshold: float = Field(default=85.0, ge=50.0, le=100.0, description="매칭 임계값 (rapidfuzz WRatio)")

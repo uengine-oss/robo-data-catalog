@@ -36,11 +36,6 @@ class LLMConfig:
 
 
 @dataclass(frozen=True)
-class BatchConfig:
-    neo4j_query_batch_size: int = field(default_factory=lambda: int(os.getenv("NEO4J_QUERY_BATCH_SIZE", "30")))
-
-
-@dataclass(frozen=True)
 class PathConfig:
     base_dir: str = field(default_factory=_get_base_dir)
 
@@ -65,7 +60,6 @@ class MetadataEnrichmentConfig:
 class CatalogConfig:
     neo4j: Neo4jConfig = field(default_factory=Neo4jConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
-    batch: BatchConfig = field(default_factory=BatchConfig)
     path: PathConfig = field(default_factory=PathConfig)
     metadata_enrichment: MetadataEnrichmentConfig = field(default_factory=MetadataEnrichmentConfig)
 

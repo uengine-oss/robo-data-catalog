@@ -350,23 +350,6 @@ async def fetch_related_tables(table_name: str) -> dict:
 # 데이터 삭제
 # =============================================================================
 
-async def cleanup_neo4j_graph() -> None:
-    """Neo4j 그래프 데이터 삭제 (파일 시스템 유지, DataSource 노드 제외)"""
-    client = Neo4jClient()
-    
-    try:
-        # DataSource 노드는 인제스천과 무관하므로 삭제에서 제외
-        await client.execute_queries([
-            "MATCH (__cy_n__) WHERE NOT __cy_n__:DataSource DETACH DELETE __cy_n__"
-        ])
-        logging.info("Neo4j 데이터 삭제 완료 (DataSource 제외)")
-    except Exception as e:
-        logging.error("Neo4j 데이터 삭제 오류: %s", e)
-        raise RuntimeError(f"Neo4j 데이터 삭제 오류: {e}")
-    finally:
-        await client.close()
-
-
 async def cleanup_all_graph_data(include_files: bool = True) -> None:
     """데이터 전체 삭제 (DataSource 노드 제외)
     
@@ -405,10 +388,8 @@ async def delete_graph_data(include_files: bool = False) -> dict:
     Returns:
         삭제 결과 메시지
     """
+    await cleanup_all_graph_data(include_files=include_files)
     if include_files:
-        await cleanup_all_graph_data(include_files=True)
         return {"message": "모든 데이터(파일 + Neo4j)가 삭제되었습니다."}
-    else:
-        await cleanup_neo4j_graph()
-        return {"message": "Neo4j 그래프 데이터가 삭제되었습니다. (파일은 유지됨)"}
+    return {"message": "Neo4j 그래프 데이터가 삭제되었습니다. (파일은 유지됨)"}
 
