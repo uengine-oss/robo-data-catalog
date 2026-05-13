@@ -73,16 +73,28 @@ async def fetch_table_columns(
     table_name: str,
     schema: str = "",
 ) -> list:
-    """테이블 컬럼 목록 조회"""
+    """테이블 컬럼 목록 조회
+
+    schema 매칭 정책:
+      - "" / "public" : schema 무시. 이름 또는 fqn 으로만 매칭.
+        (프론트가 fallback 으로 'public' 을 보내는데, Neo4j 노드에는
+         schema 속성이 비어있거나 다른 값일 수 있어 0 건이 되는 문제 방지)
+      - 그 외 : 해당 schema 에 정확 매칭하되, 노드에 schema 가 비어있는
+        legacy 데이터도 함께 잡히도록 fallback.
+    """
     client = Neo4jClient()
     try:
         params: dict = {"table_name": table_name}
+        name_match = "(t.name = $table_name OR t.fqn ENDS WITH $table_name)"
 
-        if schema:
-            where_clause = "t.name = $table_name AND t.schema = $schema"
+        if schema and schema.lower() != "public":
+            where_clause = (
+                f"{name_match} AND "
+                "(t.schema = $schema OR t.schema IS NULL OR t.schema = '')"
+            )
             params["schema"] = schema
         else:
-            where_clause = "(t.name = $table_name OR t.fqn ENDS WITH $table_name)"
+            where_clause = name_match
 
         query = {
             "query": f"""
@@ -101,7 +113,12 @@ async def fetch_table_columns(
         }
 
         results = await client.execute_queries([query])
-        return results[0] if results else []
+        rows = results[0] if results else []
+        logger.info(
+            "[schema_query] fetch_table_columns | table=%s | schema=%s | rows=%d",
+            table_name, schema, len(rows),
+        )
+        return rows
     finally:
         await client.close()
 

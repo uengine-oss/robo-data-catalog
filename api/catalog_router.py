@@ -198,12 +198,13 @@ async def list_schema_tables(
 
 @router.get("/schema/tables/{table_name}/columns", response_model=List[SchemaColumnInfo])
 async def get_table_columns(table_name: str, schema: Optional[str] = None):
-    """테이블 컬럼 목록 조회"""
-    if schema is None:
-        raise HTTPException(400, "schema 파라미터가 필요합니다.")
-    logger.info("[API] 컬럼 조회 | table=%s", table_name)
+    """테이블 컬럼 목록 조회.
+
+    schema 파라미터는 선택. 미지정/'public' 이면 이름/fqn 기준으로만 매칭.
+    """
+    logger.info("[API] 컬럼 조회 | table=%s | schema=%s", table_name, schema)
     try:
-        records = await schema_query_service.fetch_table_columns(table_name, schema)
+        records = await schema_query_service.fetch_table_columns(table_name, schema or "")
         columns = [
             SchemaColumnInfo(
                 name=r["name"],
