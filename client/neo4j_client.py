@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 from neo4j import AsyncGraphDatabase
 
+from client.connection_context import get_override
 from config.settings import settings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="neo4j")
@@ -20,12 +21,18 @@ class Neo4jClient:
     __slots__ = ("_driver", "_config", "_database")
 
     def __init__(self, database: Optional[str] = None):
+        # 연결 출처: 요청 컨텍스트에 Neo4j override(Electron 헤더)가 있으면 그 값을,
+        # 없으면(브라우저/테스트/CLI) settings.neo4j(.env) 를 쓴다.
         self._config = settings.neo4j
-        self._database = database if database is not None else self._config.database
-        self._driver = AsyncGraphDatabase.driver(
-            self._config.uri,
-            auth=(self._config.user, self._config.password),
-        )
+        override = get_override()
+        if override is not None:
+            uri, user, password = override.uri, override.user, override.password
+            default_db = override.database or self._config.database
+        else:
+            uri, user, password = self._config.uri, self._config.user, self._config.password
+            default_db = self._config.database
+        self._database = database if database is not None else default_db
+        self._driver = AsyncGraphDatabase.driver(uri, auth=(user, password))
 
     async def __aenter__(self):
         return self

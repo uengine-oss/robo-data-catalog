@@ -26,7 +26,7 @@ import json
 import logging
 from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from api.request_models import (
     LineageAnalyzeRequest,
@@ -41,6 +41,7 @@ from api.request_models import (
     DWStarSchemaRequest,
     SampleContextRequest,
 )
+from client.connection_context import Neo4jOverride, set_override
 from client.neo4j_client import Neo4jClient
 from config.settings import settings
 from service import (
@@ -59,7 +60,14 @@ from service.text2sql_client import Text2SqlClient
 def _ndjson(payload: dict) -> bytes:
     return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
 
-router = APIRouter(prefix=settings.api_prefix)
+
+async def _apply_neo4j_override(request: Request) -> None:
+    """매 요청마다 ``X-Neo4j-*`` 헤더(Electron)를 contextvar 에 설정 → 핸들러/서비스의
+    Neo4jClient 가 그 연결을 사용. 헤더 없으면 None → settings(.env) 폴백."""
+    set_override(Neo4jOverride.from_headers(request.headers))
+
+
+router = APIRouter(prefix=settings.api_prefix, dependencies=[Depends(_apply_neo4j_override)])
 logger = logging.getLogger(__name__)
 
 
