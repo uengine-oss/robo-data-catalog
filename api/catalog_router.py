@@ -570,9 +570,9 @@ async def enrich_metadata(request: Request):
 
             # 보강 대상 테이블 조회
             tables_query = """
-                MATCH (t:Table)
+                MATCH (t:TABLE)
                 WHERE t.description IS NULL OR t.description = '' OR t.description = 'N/A'
-                OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:Column)
+                OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:COLUMN)
                 RETURN t.name AS table_name, t.schema AS schema_name,
                        collect({
                          name: c.name,

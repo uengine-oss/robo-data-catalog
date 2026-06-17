@@ -18,7 +18,7 @@
       - 부분 일치 우연 (가중평균이 0.80 못 넘김)
 
   Stage 3 — Neo4j 영속화
-    (:Column)-[:FK_TO_COLUMN]->(:Column) + (:Table)-[:FK_TO_TABLE]->(:Table)
+    (:COLUMN)-[:FK_TO_COLUMN]->(:COLUMN) + (:TABLE)-[:FK_TO_TABLE]->(:TABLE)
     각 관계에 confidence + 모든 신호값 저장.
 
 confidence 점수 산식 검증 사례 (RWIS):
@@ -54,12 +54,12 @@ logger = logging.getLogger(__name__)
 
 FK_FUNCTION_NAME = "public.infer_fk_candidates"
 
-# Cypher: (:Column)-[:FK_TO_COLUMN]->(:Column)
+# Cypher: (:COLUMN)-[:FK_TO_COLUMN]->(:COLUMN)
 FK_TO_COLUMN_QUERY = """
 UNWIND $items AS item
-MATCH (c1:Column)
+MATCH (c1:COLUMN)
   WHERE toLower(c1.fqn) = toLower(item.src_schema + '.' + item.src_table + '.' + item.src_column)
-MATCH (c2:Column)
+MATCH (c2:COLUMN)
   WHERE toLower(c2.fqn) = toLower(item.tgt_schema + '.' + item.tgt_table + '.' + item.tgt_column)
 MERGE (c1)-[r:FK_TO_COLUMN]->(c2)
   ON CREATE SET r.source = 'inferred',
@@ -82,8 +82,8 @@ RETURN count(r) AS persisted
 # 테이블 단위 FK_TO_TABLE
 FK_TO_TABLE_QUERY = """
 UNWIND $items AS item
-MATCH (t1:Table {schema: item.src_schema, name: item.src_table})
-MATCH (t2:Table {schema: item.tgt_schema, name: item.tgt_table})
+MATCH (t1:TABLE {schema: item.src_schema, name: item.src_table})
+MATCH (t2:TABLE {schema: item.tgt_schema, name: item.tgt_table})
 MERGE (t1)-[r:FK_TO_TABLE {sourceColumn: item.src_column, targetColumn: item.tgt_column}]->(t2)
   ON CREATE SET r.source = 'inferred',
                 r.type = 'many_to_one',

@@ -46,7 +46,7 @@ async def search_tables_by_semantic(
     try:
         # 설명이 있는 테이블 최대 200개 조회
         cypher_query = """
-            MATCH (t:Table)
+            MATCH (t:TABLE)
             WHERE t.description IS NOT NULL
               AND t.description <> ''
             RETURN t.name        AS name,
@@ -143,7 +143,7 @@ async def vectorize_schema_tables(
 
             query = {
                 "query": f"""
-                    MATCH (t:Table)
+                    MATCH (t:TABLE)
                     {where_clause}
                     RETURN t.name        AS name,
                            t.description AS description,
@@ -166,7 +166,7 @@ async def vectorize_schema_tables(
                     if embedding:
                         await client.execute_queries([{
                             "query": """
-                                MATCH (t:Table {name: $table_name})
+                                MATCH (t:TABLE {name: $table_name})
                                 SET t.embedding = $embedding
                             """,
                             "parameters": {

@@ -172,7 +172,7 @@ class SampleContextService:
     async def _list_tables(self, datasource: str) -> List[str]:
         """Neo4j 에 저장된 datasource 의 Table 이름 목록 (schema.name 또는 name)."""
         query = (
-            "MATCH (t:Table) "
+            "MATCH (t:TABLE) "
             "WHERE t.datasource = $ds OR t.datasource IS NULL "
             "RETURN DISTINCT coalesce(t.schema + '.' + t.name, t.name) AS fqn"
         )
@@ -193,7 +193,7 @@ class SampleContextService:
             schema, name = "", table_fqn
 
         query = (
-            "MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) "
+            "MATCH (t:TABLE)-[:HAS_COLUMN]->(c:COLUMN) "
             "WHERE (t.name = $name AND ($schema = '' OR t.schema = $schema)) "
             "   OR t.fqn = $fqn "
             "RETURN c.name AS name, c.dtype AS dtype, "

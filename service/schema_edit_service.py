@@ -38,8 +38,8 @@ async def create_schema_relationship(
         # NOTE: 관계 타입은 Cypher 파라미터로 전달 불가 → f-string
         query = {
             "query": f"""
-                MATCH (t1:Table {{name: $from_table}})
-                MATCH (t2:Table {{name: $to_table}})
+                MATCH (t1:TABLE {{name: $from_table}})
+                MATCH (t2:TABLE {{name: $to_table}})
                 MERGE (t1)-[r:{relationship_type}]->(t2)
                 SET r.sourceColumn = $from_column,
                     r.targetColumn = $to_column,
@@ -76,9 +76,9 @@ async def delete_schema_relationship(
     try:
         query = {
             "query": """
-                MATCH (t1:Table {name: $from_table})
+                MATCH (t1:TABLE {name: $from_table})
                       -[r]->
-                      (t2:Table {name: $to_table})
+                      (t2:TABLE {name: $to_table})
                 WHERE type(r) IN ['FK_TO_TABLE', 'ONE_TO_ONE',
                                   'ONE_TO_MANY', 'MANY_TO_ONE', 'MANY_TO_MANY']
                   AND r.sourceColumn = $from_column
@@ -116,7 +116,7 @@ async def update_table_description(
     try:
         query = {
             "query": """
-                MATCH (t:Table)
+                MATCH (t:TABLE)
                 WHERE t.name = $table_name
                   AND (t.schema = $schema OR t.schema IS NULL)
                 SET t.description        = $description,
@@ -142,7 +142,7 @@ async def update_table_description(
                 if embedding:
                     await client.execute_queries([{
                         "query": """
-                            MATCH (t:Table {name: $table_name})
+                            MATCH (t:TABLE {name: $table_name})
                             SET t.embedding = $embedding
                         """,
                         "parameters": {
@@ -172,7 +172,7 @@ async def update_column_description(
     try:
         query = {
             "query": """
-                MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)
+                MATCH (t:TABLE)-[:HAS_COLUMN]->(c:COLUMN)
                 WHERE t.name = $table_name
                   AND c.name = $column_name
                 SET c.description        = $description,

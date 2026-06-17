@@ -48,9 +48,9 @@ async def fetch_schema_tables(
         where_clause = " AND ".join(where_conditions) if where_conditions else "true"
 
         query = f"""
-            MATCH (t:Table)
+            MATCH (t:TABLE)
             WHERE {where_clause}
-            OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:Column)
+            OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:COLUMN)
             WITH t, count(c) AS col_count
             RETURN t.name                 AS name,
                    t.schema               AS schema,
@@ -98,7 +98,7 @@ async def fetch_table_columns(
 
         query = {
             "query": f"""
-                MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)
+                MATCH (t:TABLE)-[:HAS_COLUMN]->(c:COLUMN)
                 WHERE {where_clause}
                 RETURN c.name                 AS name,
                        t.name                 AS table_name,
@@ -142,7 +142,7 @@ async def fetch_table_references(
         # ── (A) 프로시저 전략 참조 ──
         proc_query = {
             "query": """
-                MATCH (s)-[:FROM|WRITES]->(t:Table)
+                MATCH (s)-[:FROM|WRITES]->(t:TABLE)
                 WHERE (t.name = $table_name OR t.fqn ENDS WITH $table_name)
                   AND NOT s:FUNCTION AND NOT s:VARIABLE
                 OPTIONAL MATCH (p)-[:PARENT_OF*]->(s)
@@ -163,7 +163,7 @@ async def fetch_table_references(
         # ── (B) 프레임워크 전략 참조 ──
         fw_query = {
             "query": """
-                MATCH (src)-[r:READS|WRITES]->(t:Table)
+                MATCH (src)-[r:READS|WRITES]->(t:TABLE)
                 WHERE (t.name = $table_name OR t.fqn ENDS WITH $table_name)
                   AND (src:FUNCTION OR src:VARIABLE)
                 OPTIONAL MATCH (m:MODULE)-[:HAS_FUNCTION|HAS_VARIABLE]->(src)
@@ -180,7 +180,7 @@ async def fetch_table_references(
 
                 UNION ALL
 
-                MATCH (m:MODULE)-[r:REFER_TO]->(t:Table)
+                MATCH (m:MODULE)-[r:REFER_TO]->(t:TABLE)
                 WHERE t.name = $table_name
                    OR t.fqn ENDS WITH $table_name
                 RETURN DISTINCT
@@ -253,7 +253,7 @@ async def fetch_schema_relationships() -> list:
     client = Neo4jClient()
     try:
         query = """
-            MATCH (t1:Table)-[r]->(t2:Table)
+            MATCH (t1:TABLE)-[r]->(t2:TABLE)
             WHERE type(r) IN ['FK_TO_TABLE', 'ONE_TO_ONE',
                               'ONE_TO_MANY', 'MANY_TO_ONE', 'MANY_TO_MANY']
             RETURN t1.name       AS from_table,

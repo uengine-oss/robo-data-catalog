@@ -175,7 +175,7 @@ JSON만 응답하세요."""
         self, table_name: str, schema_name: str, description: str
     ) -> None:
         query = """
-        MATCH (t:Table {name: $table_name, schema: $schema_name})
+        MATCH (t:TABLE {name: $table_name, schema: $schema_name})
         WHERE t.description IS NULL
            OR t.description = ''
            OR t.description = 'N/A'
@@ -196,8 +196,8 @@ JSON만 응답하세요."""
         self, table_name: str, schema_name: str, column_descs: Dict[str, str]
     ) -> int:
         query = """
-        MATCH (t:Table {name: $table_name, schema: $schema_name})
-          -[:HAS_COLUMN]->(c:Column {name: $col_name})
+        MATCH (t:TABLE {name: $table_name, schema: $schema_name})
+          -[:HAS_COLUMN]->(c:COLUMN {name: $col_name})
         WHERE c.description IS NULL
            OR c.description = ''
            OR c.description = 'N/A'

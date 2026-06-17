@@ -299,7 +299,7 @@ class LineageAnalyzer:
                         MATCH (__cy_proc__)
                         WHERE (__cy_proc__:PROCEDURE OR __cy_proc__:FUNCTION)
                           AND toLower(__cy_proc__.procedure_name) = toLower($proc_name)
-                        MATCH (__cy_t__:Table)
+                        MATCH (__cy_t__:TABLE)
                         WHERE toLower(__cy_t__.name) = toLower($table_name)
                         MERGE (__cy_proc__)-[__cy_r__:ETL_READS]->(__cy_t__)
                         SET __cy_r__.operation = $operation_type,
@@ -324,7 +324,7 @@ class LineageAnalyzer:
                         MATCH (__cy_proc__)
                         WHERE (__cy_proc__:PROCEDURE OR __cy_proc__:FUNCTION)
                           AND toLower(__cy_proc__.procedure_name) = toLower($proc_name)
-                        MATCH (__cy_t__:Table)
+                        MATCH (__cy_t__:TABLE)
                         WHERE toLower(__cy_t__.name) = toLower($table_name)
                         MERGE (__cy_proc__)-[__cy_r__:ETL_WRITES]->(__cy_t__)
                         SET __cy_r__.operation = $operation_type,
@@ -348,9 +348,9 @@ class LineageAnalyzer:
 
                     queries.append({
                         "query": """
-                            MATCH (__cy_src__:Table)
+                            MATCH (__cy_src__:TABLE)
                             WHERE toLower(__cy_src__.name) = toLower($src_name)
-                            MATCH (__cy_tgt__:Table)
+                            MATCH (__cy_tgt__:TABLE)
                             WHERE toLower(__cy_tgt__.name) = toLower($tgt_name)
                             MERGE (__cy_src__)-[__cy_r__:DATA_FLOWS_TO]->(__cy_tgt__)
                             SET __cy_r__.via_etl = $etl_name,

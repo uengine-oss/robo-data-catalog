@@ -209,7 +209,7 @@ async def fetch_related_tables(table_name: str) -> dict:
         # FK_TO_TABLE 관계 조회
         fk_query = {
             "query": """
-                MATCH (__cy_t1__:Table)-[__cy_r__:FK_TO_TABLE]->(__cy_t2__:Table)
+                MATCH (__cy_t1__:TABLE)-[__cy_r__:FK_TO_TABLE]->(__cy_t2__:TABLE)
                 WHERE __cy_t1__.name = $table_name OR __cy_t2__.name = $table_name
                    OR __cy_t1__.fqn ENDS WITH $table_name OR __cy_t2__.fqn ENDS WITH $table_name
                 RETURN __cy_t1__.name AS from_table, 
@@ -229,11 +229,11 @@ async def fetch_related_tables(table_name: str) -> dict:
         # 같은 프로시저에서 참조되는 테이블 (CO_REFERENCED)
         proc_query = {
             "query": """
-                MATCH (__cy_t__:Table)
+                MATCH (__cy_t__:TABLE)
                 WHERE __cy_t__.name = $table_name OR __cy_t__.fqn ENDS WITH $table_name
                 
                 OPTIONAL MATCH (__cy_t__)<-[:FROM|WRITES]-(__cy_s1__)<-[:PARENT_OF*]-(__cy_proc__)
-                OPTIONAL MATCH (__cy_proc__)-[:PARENT_OF*]->(__cy_s2__)-[:FROM|WRITES]->(__cy_t2__:Table)
+                OPTIONAL MATCH (__cy_proc__)-[:PARENT_OF*]->(__cy_s2__)-[:FROM|WRITES]->(__cy_t2__:TABLE)
                 WHERE __cy_t2__ <> __cy_t__
                 
                 WITH __cy_t__, COLLECT(DISTINCT {

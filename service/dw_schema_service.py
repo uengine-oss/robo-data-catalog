@@ -66,7 +66,7 @@ async def register_star_schema(
         
         fact_query = {
             "query": """
-                MERGE (__cy_t__:Table {fqn: $fqn})
+                MERGE (__cy_t__:TABLE {fqn: $fqn})
                 SET __cy_t__.name = $name,
                     __cy_t__.schema = $schema,
                     __cy_t__.db_name = $db_name,
@@ -91,8 +91,8 @@ async def register_star_schema(
             col_fqn = f"{fact_fqn}.{col['name']}"
             col_query = {
                 "query": """
-                    MATCH (__cy_t__:Table {fqn: $table_fqn})
-                    MERGE (__cy_t__)-[:HAS_COLUMN]->(__cy_c__:Column {fqn: $col_fqn})
+                    MATCH (__cy_t__:TABLE {fqn: $table_fqn})
+                    MERGE (__cy_t__)-[:HAS_COLUMN]->(__cy_c__:COLUMN {fqn: $col_fqn})
                     SET __cy_c__.name = $col_name,
                         __cy_c__.dtype = $dtype,
                         __cy_c__.description = $description,
@@ -119,7 +119,7 @@ async def register_star_schema(
             
             dim_query = {
                 "query": """
-                    MERGE (__cy_t__:Table {fqn: $fqn})
+                    MERGE (__cy_t__:TABLE {fqn: $fqn})
                     SET __cy_t__.name = $name,
                         __cy_t__.schema = $schema,
                         __cy_t__.db_name = $db_name,
@@ -144,8 +144,8 @@ async def register_star_schema(
                 col_fqn = f"{dim_fqn}.{col['name']}"
                 col_query = {
                     "query": """
-                        MATCH (__cy_t__:Table {fqn: $table_fqn})
-                        MERGE (__cy_t__)-[:HAS_COLUMN]->(__cy_c__:Column {fqn: $col_fqn})
+                        MATCH (__cy_t__:TABLE {fqn: $table_fqn})
+                        MERGE (__cy_t__)-[:HAS_COLUMN]->(__cy_c__:COLUMN {fqn: $col_fqn})
                         SET __cy_c__.name = $col_name,
                             __cy_c__.dtype = $dtype,
                             __cy_c__.description = $description
@@ -167,8 +167,8 @@ async def register_star_schema(
                 target_table = col["fk_target_table"]
                 fk_query = {
                     "query": """
-                        MATCH (__cy_f__:Table {fqn: $fact_fqn})
-                        MATCH (__cy_d__:Table {fqn: $target_fqn})
+                        MATCH (__cy_f__:TABLE {fqn: $fact_fqn})
+                        MATCH (__cy_d__:TABLE {fqn: $target_fqn})
                         MERGE (__cy_f__)-[__cy_r__:FK_TO_TABLE]->(__cy_d__)
                         SET __cy_r__.sourceColumn = $source_column,
                             __cy_r__.source = 'user'
@@ -196,7 +196,7 @@ async def register_star_schema(
                 if fact_embedding:
                     embed_query = {
                         "query": """
-                            MATCH (__cy_t__:Table {fqn: $fqn})
+                            MATCH (__cy_t__:TABLE {fqn: $fqn})
                             SET __cy_t__.embedding = $embedding
                         """,
                         "parameters": {
@@ -225,7 +225,7 @@ async def register_star_schema(
                     if dim_embedding:
                         embed_query = {
                             "query": """
-                                MATCH (__cy_t__:Table {fqn: $fqn})
+                                MATCH (__cy_t__:TABLE {fqn: $fqn})
                                 SET __cy_t__.embedding = $embedding
                             """,
                             "parameters": {
@@ -268,8 +268,8 @@ async def delete_star_schema(
         # 큐브에 속한 모든 테이블과 컬럼, 관계 삭제
         query = {
             "query": """
-                MATCH (__cy_t__:Table {cube_name: $cube_name})
-                OPTIONAL MATCH (__cy_t__)-[:HAS_COLUMN]->(__cy_c__:Column)
+                MATCH (__cy_t__:TABLE {cube_name: $cube_name})
+                OPTIONAL MATCH (__cy_t__)-[:HAS_COLUMN]->(__cy_c__:COLUMN)
                 OPTIONAL MATCH (__cy_t__)-[__cy_r__:FK_TO_TABLE]->()
                 DETACH DELETE __cy_t__, __cy_c__
                 RETURN count(DISTINCT __cy_t__) AS deleted_tables
