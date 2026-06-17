@@ -58,9 +58,9 @@ FK_FUNCTION_NAME = "public.infer_fk_candidates"
 FK_TO_COLUMN_QUERY = """
 UNWIND $items AS item
 MATCH (c1:COLUMN)
-  WHERE toLower(c1.fqn) = toLower(item.src_schema + '.' + item.src_table + '.' + item.src_column)
+  WHERE toLower(c1.id) = toLower(item.src_schema + '.' + item.src_table + '.' + item.src_column)
 MATCH (c2:COLUMN)
-  WHERE toLower(c2.fqn) = toLower(item.tgt_schema + '.' + item.tgt_table + '.' + item.tgt_column)
+  WHERE toLower(c2.id) = toLower(item.tgt_schema + '.' + item.tgt_table + '.' + item.tgt_column)
 MERGE (c1)-[r:FK_TO_COLUMN]->(c2)
   ON CREATE SET r.source = 'inferred',
                 r.confidence = item.confidence,

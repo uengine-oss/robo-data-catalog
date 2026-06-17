@@ -85,7 +85,7 @@ async def fetch_table_columns(
     client = Neo4jClient()
     try:
         params: dict = {"table_name": table_name}
-        name_match = "(t.name = $table_name OR t.fqn ENDS WITH $table_name)"
+        name_match = "(t.name = $table_name OR t.id ENDS WITH $table_name)"
 
         if schema and schema.lower() != "public":
             where_clause = (
@@ -143,7 +143,7 @@ async def fetch_table_references(
         proc_query = {
             "query": """
                 MATCH (s)-[:FROM|WRITES]->(t:TABLE)
-                WHERE (t.name = $table_name OR t.fqn ENDS WITH $table_name)
+                WHERE (t.name = $table_name OR t.id ENDS WITH $table_name)
                   AND NOT s:FUNCTION AND NOT s:VARIABLE
                 OPTIONAL MATCH (p)-[:PARENT_OF*]->(s)
                     WHERE p:PROCEDURE OR p:FUNCTION
@@ -164,11 +164,11 @@ async def fetch_table_references(
         fw_query = {
             "query": """
                 MATCH (src)-[r:READS|WRITES]->(t:TABLE)
-                WHERE (t.name = $table_name OR t.fqn ENDS WITH $table_name)
+                WHERE (t.name = $table_name OR t.id ENDS WITH $table_name)
                   AND (src:FUNCTION OR src:VARIABLE)
                 OPTIONAL MATCH (m:MODULE)-[:HAS_FUNCTION|HAS_VARIABLE]->(src)
                 RETURN DISTINCT
-                    COALESCE(src.name, src.function_id) AS source_name,
+                    COALESCE(src.name, src.id) AS source_name,
                     'FUNCTION'       AS source_type,
                     type(r)          AS access_type,
                     src.start_line   AS start_line,
@@ -182,7 +182,7 @@ async def fetch_table_references(
 
                 MATCH (m:MODULE)-[r:REFER_TO]->(t:TABLE)
                 WHERE t.name = $table_name
-                   OR t.fqn ENDS WITH $table_name
+                   OR t.id ENDS WITH $table_name
                 RETURN DISTINCT
                     m.name           AS source_name,
                     'MODULE'         AS source_type,

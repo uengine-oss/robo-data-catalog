@@ -195,7 +195,7 @@ class SampleContextService:
         query = (
             "MATCH (t:TABLE)-[:HAS_COLUMN]->(c:COLUMN) "
             "WHERE (t.name = $name AND ($schema = '' OR t.schema = $schema)) "
-            "   OR t.fqn = $fqn "
+            "   OR t.id = $fqn "
             "RETURN c.name AS name, c.dtype AS dtype, "
             "       c.description AS description, "
             "       c.is_primary_key AS is_primary_key, "

@@ -211,7 +211,7 @@ async def fetch_related_tables(table_name: str) -> dict:
             "query": """
                 MATCH (__cy_t1__:TABLE)-[__cy_r__:FK_TO_TABLE]->(__cy_t2__:TABLE)
                 WHERE __cy_t1__.name = $table_name OR __cy_t2__.name = $table_name
-                   OR __cy_t1__.fqn ENDS WITH $table_name OR __cy_t2__.fqn ENDS WITH $table_name
+                   OR __cy_t1__.id ENDS WITH $table_name OR __cy_t2__.id ENDS WITH $table_name
                 RETURN __cy_t1__.name AS from_table, 
                        __cy_t1__.schema_name AS from_schema,
                        __cy_t1__.description AS from_desc,
@@ -230,7 +230,7 @@ async def fetch_related_tables(table_name: str) -> dict:
         proc_query = {
             "query": """
                 MATCH (__cy_t__:TABLE)
-                WHERE __cy_t__.name = $table_name OR __cy_t__.fqn ENDS WITH $table_name
+                WHERE __cy_t__.name = $table_name OR __cy_t__.id ENDS WITH $table_name
                 
                 OPTIONAL MATCH (__cy_t__)<-[:FROM|WRITES]-(__cy_s1__)<-[:PARENT_OF*]-(__cy_proc__)
                 OPTIONAL MATCH (__cy_proc__)-[:PARENT_OF*]->(__cy_s2__)-[:FROM|WRITES]->(__cy_t2__:TABLE)
