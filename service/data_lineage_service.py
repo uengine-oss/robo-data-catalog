@@ -17,93 +17,52 @@ logger = logging.getLogger(__name__)
 
 
 async def fetch_lineage_graph() -> dict:
-    """데이터 리니지 그래프 조회
-    
+    """데이터 리니지 그래프 조회 — 전략무관(framework·dbms 공통).
+
+    분석 그래프의 ``(f)-[:READS|WRITES]->(:TABLE)`` 에서 도출:
+    읽은 테이블=SOURCE, 그 함수/처리=ETL, 쓴 테이블=TARGET. 프론트의 SOURCE→ETL→TARGET
+    모델 그대로. (옛 dbms 전용 DataSource/ETLProcess 모델 대체 — spec 007.)
+
     Returns:
         {"nodes": [...], "edges": [...], "stats": {...}}
     """
     client = Neo4jClient()
     try:
-        # DataSource, ETLProcess 노드 조회
-        node_query = """
-            MATCH (__cy_n__)
-            WHERE (__cy_n__:DataSource OR __cy_n__:ETLProcess)
-            RETURN __cy_n__.name AS name,
-                   labels(__cy_n__)[0] AS nodeType,
-                   elementId(__cy_n__) AS id,
-                   properties(__cy_n__) AS properties
-            ORDER BY nodeType, name
+        query = """
+            MATCH (__cy_f__)-[__cy_r__:READS|WRITES]->(__cy_t__:TABLE)
+            RETURN elementId(__cy_f__) AS fid,
+                   coalesce(__cy_f__.logical_name, __cy_f__.name, __cy_f__.id) AS fname,
+                   type(__cy_r__) AS rel,
+                   elementId(__cy_t__) AS tid,
+                   coalesce(__cy_t__.logical_name, __cy_t__.name, __cy_t__.id) AS tname
         """
-        
-        # 관계 조회 쿼리
-        rel_query = """
-            MATCH (__cy_src__)-[__cy_r__]->(__cy_tgt__)
-            WHERE (__cy_src__:DataSource OR __cy_src__:ETLProcess)
-              AND (__cy_tgt__:DataSource OR __cy_tgt__:ETLProcess)
-              AND type(__cy_r__) IN ['DATA_FLOW_TO', 'TRANSFORMS_TO']
-            RETURN elementId(__cy_r__) AS id,
-                   elementId(__cy_src__) AS source,
-                   elementId(__cy_tgt__) AS target,
-                   type(__cy_r__) AS relType,
-                   properties(__cy_r__) AS properties
-        """
-        
-        # 통계 쿼리
-        stats_query = """
-            MATCH (__cy_n__)
-            WHERE (__cy_n__:DataSource OR __cy_n__:ETLProcess)
-            WITH 
-                sum(CASE WHEN __cy_n__:ETLProcess THEN 1 ELSE 0 END) AS etlCount,
-                sum(CASE WHEN __cy_n__:DataSource AND __cy_n__.type = 'SOURCE' THEN 1 ELSE 0 END) AS sourceCount,
-                sum(CASE WHEN __cy_n__:DataSource AND __cy_n__.type = 'TARGET' THEN 1 ELSE 0 END) AS targetCount
-            RETURN etlCount, sourceCount, targetCount
-        """
-        
-        # 쿼리 실행
-        node_result, rel_result, stats_result = await client.execute_queries([
-            node_query, rel_query, stats_query
-        ])
-        
-        # 응답 변환
-        nodes = []
-        for record in node_result:
-            node_type = record.get("nodeType", "Unknown")
-            if node_type == "DataSource":
-                node_type = record.get("properties", {}).get("type", "SOURCE")
-            elif node_type == "ETLProcess":
-                node_type = "ETL"
-            
-            nodes.append({
-                "id": record["id"],
-                "name": record["name"],
-                "type": node_type,
-                "properties": record.get("properties", {})
-            })
-        
-        edges = []
-        for record in rel_result:
-            edges.append({
-                "id": record["id"],
-                "source": record["source"],
-                "target": record["target"],
-                "type": record["relType"],
-                "properties": record.get("properties", {})
-            })
-        
-        stats = {}
-        if stats_result:
-            stats = {
-                "etlCount": stats_result[0].get("etlCount", 0),
-                "sourceCount": stats_result[0].get("sourceCount", 0),
-                "targetCount": stats_result[0].get("targetCount", 0),
-                "flowCount": len(edges)
-            }
-        
-        return {
-            "nodes": nodes,
-            "edges": edges,
-            "stats": stats
+        rows = (await client.execute_queries([query]))[0]
+
+        nodes: dict[str, dict] = {}
+        edges: dict[str, dict] = {}
+        for r in rows:
+            etl_id = f"etl:{r['fid']}"
+            nodes.setdefault(etl_id, {"id": etl_id, "name": r["fname"], "type": "ETL", "properties": {}})
+            if r["rel"] == "READS":
+                src_id = f"src:{r['tid']}"
+                nodes.setdefault(src_id, {"id": src_id, "name": r["tname"], "type": "SOURCE", "properties": {}})
+                eid = f"{src_id}->{etl_id}"
+                edges.setdefault(eid, {"id": eid, "source": src_id, "target": etl_id, "type": "DATA_FLOW_TO", "properties": {}})
+            else:  # WRITES
+                tgt_id = f"tgt:{r['tid']}"
+                nodes.setdefault(tgt_id, {"id": tgt_id, "name": r["tname"], "type": "TARGET", "properties": {}})
+                eid = f"{etl_id}->{tgt_id}"
+                edges.setdefault(eid, {"id": eid, "source": etl_id, "target": tgt_id, "type": "DATA_FLOW_TO", "properties": {}})
+
+        node_list = list(nodes.values())
+        edge_list = list(edges.values())
+        stats = {
+            "etlCount": sum(1 for n in node_list if n["type"] == "ETL"),
+            "sourceCount": sum(1 for n in node_list if n["type"] == "SOURCE"),
+            "targetCount": sum(1 for n in node_list if n["type"] == "TARGET"),
+            "flowCount": len(edge_list),
         }
+        return {"nodes": node_list, "edges": edge_list, "stats": stats}
     finally:
         await client.close()
 
