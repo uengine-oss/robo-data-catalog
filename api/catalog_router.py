@@ -190,6 +190,7 @@ async def list_schema_tables(
                 name=r["name"],
                 table_schema=r["schema"] or "",
                 datasource=r.get("datasource") or "",
+                logical_name=r.get("logical_name") or "",
                 description=r["description"] or "",
                 description_source=r.get("description_source") or "",
                 analyzed_description=r.get("analyzed_description") or "",

@@ -55,6 +55,7 @@ async def fetch_schema_tables(
             RETURN t.name                 AS name,
                    t.schema               AS schema,
                    t.datasource           AS datasource,
+                   t.logical_name         AS logical_name,
                    t.description          AS description,
                    t.description_source   AS description_source,
                    t.analyzed_description AS analyzed_description,
@@ -146,15 +147,18 @@ async def fetch_table_references(
                 WHERE (t.name = $table_name OR t.id ENDS WITH $table_name)
                   AND NOT s:FUNCTION AND NOT s:VARIABLE
                 OPTIONAL MATCH (p)-[:PARENT_OF*]->(s)
-                    WHERE p:PROCEDURE OR p:FUNCTION
+                    WHERE p:PROCEDURE OR p:FUNCTION OR p:METHOD OR p:TRIGGER
                 RETURN DISTINCT
                     p.name           AS procedure_name,
                     labels(p)[0]     AS procedure_type,
-                    s.start_line     AS start_line,
+                    p.start_line     AS start_line,
+                    p.end_line       AS end_line,
                     s.type           AS statement_type,
                     s.start_line     AS statement_line,
+                    s.start_line     AS evidence_line,
                     p.file_name      AS file_name,
-                    p.file_directory AS file_directory
+                    p.file_directory AS file_directory,
+                    p.file_path      AS file_path
                 ORDER BY p.name, s.start_line
             """,
             "parameters": {"table_name": table_name},
@@ -165,13 +169,14 @@ async def fetch_table_references(
             "query": """
                 MATCH (src)-[r:READS|WRITES]->(t:TABLE)
                 WHERE (t.name = $table_name OR t.id ENDS WITH $table_name)
-                  AND (src:FUNCTION OR src:VARIABLE)
-                OPTIONAL MATCH (m:MODULE)-[:HAS_FUNCTION|HAS_VARIABLE]->(src)
+                OPTIONAL MATCH (m)-[:HAS_MEMBER]->(src)
                 RETURN DISTINCT
                     COALESCE(src.name, src.id) AS source_name,
-                    'FUNCTION'       AS source_type,
+                    labels(src)[0]   AS source_type,
                     type(r)          AS access_type,
                     src.start_line   AS start_line,
+                    src.end_line     AS end_line,
+                    r.evidence_line  AS evidence_line,
                     src.file_name    AS file_name,
                     src.file_path    AS file_path,
                     src.directory    AS file_directory,
@@ -180,14 +185,16 @@ async def fetch_table_references(
 
                 UNION ALL
 
-                MATCH (m:MODULE)-[r:REFER_TO]->(t:TABLE)
+                MATCH (m)-[r:REFER_TO]->(t:TABLE)
                 WHERE t.name = $table_name
                    OR t.id ENDS WITH $table_name
                 RETURN DISTINCT
                     m.name           AS source_name,
-                    'MODULE'         AS source_type,
+                    labels(m)[0]     AS source_type,
                     'REFER_TO'       AS access_type,
                     m.start_line     AS start_line,
+                    m.end_line       AS end_line,
+                    r.evidence_line  AS evidence_line,
                     m.file_name      AS file_name,
                     m.file_path      AS file_path,
                     m.file_directory AS file_directory,
