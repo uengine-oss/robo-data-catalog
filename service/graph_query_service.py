@@ -27,6 +27,17 @@ _VECTOR_KEY_HINTS = ("vector",)
 _EMBEDDING_KEY_HINTS = ("embedding",)
 _CYPHER_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+# 검색·분석 런타임이 Neo4j 내부에서만 소비하는 저장 노드. 사용자 그래프 API에는
+# 노드·관계·통계 어느 형태로도 노출하지 않는다.
+SYSTEM_GRAPH_NODE_LABELS: frozenset[str] = frozenset({"GLOSSARY", "EMBED_META"})
+
+
+def _visible_node_predicate(alias: str) -> str:
+    """사용자 그래프 노드 predicate. alias는 코드 상수만 전달한다."""
+    if not _is_valid_cypher_identifier(alias):
+        raise ValueError(f"invalid Cypher alias: {alias!r}")
+    return " AND ".join(f"NOT {alias}:{label}" for label in sorted(SYSTEM_GRAPH_NODE_LABELS))
+
 
 def _is_large_numeric_vector(value: Any, min_len: int = 128) -> bool:
     """벡터로 간주할 수 있는 고차원 숫자 배열 여부."""
@@ -112,7 +123,8 @@ async def check_graph_data_exists() -> dict:
     client = Neo4jClient()
     try:
         result = await client.execute_queries([
-            "MATCH (__cy_n__) RETURN count(__cy_n__) as count"
+            f"MATCH (__cy_n__) WHERE {_visible_node_predicate('__cy_n__')} "
+            "RETURN count(__cy_n__) as count"
         ])
         node_count = result[0][0]["count"] if result and result[0] else 0
         
@@ -135,15 +147,17 @@ async def fetch_graph_data() -> dict:
         vector_keys = await _discover_vector_property_keys(client)
         null_projection_suffix = _build_null_projection_suffix(vector_keys)
 
-        # 노드 조회 (전체 노드)
+        # 사용자 그래프 노드 조회 — 검색/분석 시스템 노드는 API 경계에서 제외.
         node_query = f"""
             MATCH (__cy_n__)
+            WHERE {_visible_node_predicate('__cy_n__')}
             RETURN elementId(__cy_n__) AS nodeId, labels(__cy_n__) AS labels, __cy_n__{{.*{null_projection_suffix}}} AS props
         """
         
         # 관계 조회 (전체 관계)
         rel_query = f"""
             MATCH (__cy_a__)-[__cy_r__]->(__cy_b__)
+            WHERE {_visible_node_predicate('__cy_a__')} AND {_visible_node_predicate('__cy_b__')}
             RETURN elementId(__cy_r__) AS relId, 
                    elementId(__cy_a__) AS startId, 
                    elementId(__cy_b__) AS endId, 
