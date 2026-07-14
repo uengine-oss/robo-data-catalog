@@ -31,7 +31,7 @@ confidence 점수 산식 검증 사례 (RWIS):
 전제:
 - 대상 PG 에 public.infer_fk_candidates(schema, threshold, min_distinct) 함수 사전 설치.
   설치 SQL: scripts/install_fk_function.sql
-- MindsDB datasource 등록 (text2sql 백엔드 경유).
+- data-fabric 에 datasource 등록 (SQL 은 MindsDB 네이티브 쿼리로 대상 PG 에 그대로 전달).
 
 스트리밍:
 - async generator 가 dict 이벤트 yield. 호출자는 NDJSON 으로 변환해 전송.
@@ -46,7 +46,7 @@ import aiohttp
 from rapidfuzz import fuzz
 
 from client.neo4j_client import Neo4jClient
-from service.text2sql_client import Text2SqlClient
+from service.data_fabric_client import DataFabricClient
 from util.logger import log_process
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ class FkInferenceService:
     def __init__(
         self,
         neo4j_client: Neo4jClient,
-        text2sql_client: Text2SqlClient,
+        db_client: DataFabricClient,
         overlap_threshold: float = 0.8,
         min_src_distinct: int = 2,
         confidence_threshold: float = 0.85,
@@ -132,7 +132,7 @@ class FkInferenceService:
                 0.80 까지 낮추면 distinct 작은 동명 컬럼(BR_GUBUN 등)도 채택, 정확도 ↓.
         """
         self._neo4j = neo4j_client
-        self._text2sql = text2sql_client
+        self._db = db_client
         self._overlap_threshold = overlap_threshold
         self._min_src_distinct = min_src_distinct
         self._confidence_threshold = confidence_threshold
@@ -223,7 +223,7 @@ class FkInferenceService:
             f")"
         )
         try:
-            rows = await self._text2sql.fetch_rows(session, sql)
+            rows = await self._db.fetch_rows(session, sql)
         except Exception as e:
             log_process("FK_INFER", "FETCH_ERROR", f"{type(e).__name__}: {e}", logging.WARNING)
             return None

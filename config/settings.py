@@ -46,7 +46,7 @@ class PathConfig:
 
 @dataclass(frozen=True)
 class MetadataEnrichmentConfig:
-    text2sql_api_url: str = field(default_factory=lambda: os.getenv("TEXT2SQL_API_URL", ""))
+    data_fabric_url: str = field(default_factory=lambda: os.getenv("DATA_FABRIC_URL", ""))
     fk_inference_enabled: bool = field(default_factory=lambda: os.getenv("FK_INFERENCE_ENABLED", "true").lower() == "true")
     fk_sample_size: int = field(default_factory=lambda: int(os.getenv("FK_SAMPLE_SIZE", "25")))
     fk_similarity_threshold: float = field(default_factory=lambda: float(os.getenv("FK_SIMILARITY_THRESHOLD", "0.8")))

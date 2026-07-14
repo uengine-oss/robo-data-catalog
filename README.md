@@ -14,6 +14,21 @@
 - DW 스타스키마 등록/삭제
 - 스키마 벡터화
 
+## 대상 DB 접근 (data-fabric 경유)
+
+catalog 는 대상 DB 에 **직접 붙지 않는다.** 샘플 행 조회와 FK 추론 SQL 은 모두
+`data-fabric`(8004) 의 `/api/query` 로 나가고, data-fabric 이 MindsDB **네이티브 쿼리 패스스루**로
+대상 DB 에 SQL 원문을 그대로 전달한다. 따라서 SQL 은 대상 DB 방언(PostgreSQL 등) 그대로 쓴다.
+
+```
+catalog ──POST /api/query──> data-fabric(8004) ──> MindsDB ──> 대상 DB(PostgreSQL 등)
+```
+
+- 단일 클라이언트: `service/data_fabric_client.py`
+- 설정: `DATA_FABRIC_URL` (없으면 샘플 보강·FK 추론이 skip 된다)
+- FK 추론은 대상 PG 에 `public.infer_fk_candidates(...)` 함수가 설치돼 있어야 한다
+  (`scripts/install_fk_function.sql`) — MindsDB 패스스루로 그대로 호출된다.
+
 ## 아키텍처
 
 ```
@@ -31,7 +46,7 @@ robo-data-catalog (port 5503)
 │   ├── graph_query_service.py       # 그래프 조회
 │   ├── data_lineage_service.py      # 리니지·ETL 분석
 │   ├── dw_schema_service.py         # DW 스타스키마
-│   └── text2sql_client.py
+│   └── data_fabric_client.py        # 대상 DB SQL 실행 (data-fabric → MindsDB 네이티브 쿼리)
 ├── client/
 │   ├── neo4j_client.py
 │   ├── connection_context.py        # 요청별 Neo4j override(X-Neo4j-*)
@@ -107,8 +122,8 @@ LLM_API_KEY=                 # 또는 OPENAI_API_KEY
 LLM_MODEL=gpt-4.1
 EMBEDDING_MODEL=text-embedding-3-small
 
-# 메타데이터 보강 (Text2SQL 연동)
-TEXT2SQL_API_URL=
+# 메타데이터 보강 (Data Fabric 연동 — 샘플 행 조회 + FK 추론 SQL)
+DATA_FABRIC_URL=http://127.0.0.1:8004
 FK_INFERENCE_ENABLED=true
 FK_SAMPLE_SIZE=25
 FK_SIMILARITY_THRESHOLD=0.8

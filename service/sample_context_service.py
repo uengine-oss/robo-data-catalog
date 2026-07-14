@@ -22,7 +22,7 @@ import aiohttp
 from rapidfuzz import fuzz, process
 
 from client.neo4j_client import Neo4jClient
-from service.text2sql_client import Text2SqlClient
+from service.data_fabric_client import DataFabricClient
 from util.logger import log_process
 
 logger = logging.getLogger(__name__)
@@ -87,16 +87,15 @@ class SampleContextService:
     def __init__(
         self,
         neo4j_client: Neo4jClient,
-        text2sql_client: Text2SqlClient,
+        db_client: DataFabricClient,
         concurrency: int = 5,
     ):
         self._neo4j = neo4j_client
-        self._text2sql = text2sql_client
+        self._db = db_client
         self._sem = asyncio.Semaphore(max(1, concurrency))
 
     async def fetch(
         self,
-        datasource: str,
         table_names: List[str],
         sample_limit: int = 5,
         similarity_threshold: float = 85.0,
@@ -108,6 +107,7 @@ class SampleContextService:
         """
         if not table_names:
             return {}
+        datasource = self._db.datasource
         if not datasource:
             raise ValueError("datasource is required")
 
@@ -133,7 +133,7 @@ class SampleContextService:
         # 3) 매칭된 테이블 각각에 대해 컬럼 + 샘플 병렬 조회
         async with aiohttp.ClientSession() as session:
             tasks = [
-                self._fetch_one(session, req_name, matched, datasource, sample_limit)
+                self._fetch_one(session, req_name, matched, sample_limit)
                 for req_name, matched in resolved.items()
             ]
             pairs = await asyncio.gather(*tasks)
@@ -145,7 +145,6 @@ class SampleContextService:
         session: aiohttp.ClientSession,
         req_name: str,
         matched: Optional[Tuple[str, float]],
-        datasource: str,
         sample_limit: int,
     ) -> Tuple[str, Optional[Dict[str, Any]]]:
         if matched is None:
@@ -153,7 +152,7 @@ class SampleContextService:
         actual, score = matched
         async with self._sem:
             columns_task = self._fetch_columns(actual)
-            rows_task = self._fetch_sample_rows(session, actual, datasource, sample_limit)
+            rows_task = self._fetch_sample_rows(session, actual, sample_limit)
             columns, sample_rows = await asyncio.gather(columns_task, rows_task)
         return (
             req_name,
@@ -216,11 +215,7 @@ class SampleContextService:
         self,
         session: aiohttp.ClientSession,
         table_fqn: str,
-        datasource: str,
         limit: int,
     ) -> Optional[List[Dict[str, Any]]]:
-        """text2sql 경유 SELECT * LIMIT N."""
-        # text2sql_client 의 datasource 는 생성 시 고정이므로 재구성
-        client = Text2SqlClient(self._text2sql._base_url, datasource)
-        sql = f'SELECT * FROM "{table_fqn}" LIMIT {limit}' if "." in table_fqn else f"SELECT * FROM {table_fqn} LIMIT {limit}"
-        return await client.fetch_rows(session, sql)
+        """data-fabric 경유 SELECT * LIMIT N."""
+        return await self._db.fetch_rows(session, DataFabricClient.sample_sql(table_fqn, limit))

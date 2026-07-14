@@ -53,8 +53,8 @@ from service import (
     schema_search_service,
 )
 from service.fk_inference_service import FkInferenceService
+from service.data_fabric_client import DataFabricClient
 from service.sample_context_service import SampleContextService
-from service.text2sql_client import Text2SqlClient
 
 
 def _ndjson(payload: dict) -> bytes:
@@ -489,17 +489,15 @@ async def get_table_sample_context(body: SampleContextRequest):
     )
     neo4j = Neo4jClient()
     try:
-        text2sql = Text2SqlClient(
-            base_url=settings.metadata_enrichment.text2sql_api_url,
-            datasource=body.datasource,
-        )
         service = SampleContextService(
             neo4j_client=neo4j,
-            text2sql_client=text2sql,
+            db_client=DataFabricClient(
+                base_url=settings.metadata_enrichment.data_fabric_url,
+                datasource=body.datasource,
+            ),
             concurrency=settings.metadata_enrichment.fk_concurrency,
         )
         result = await service.fetch(
-            datasource=body.datasource,
             table_names=body.table_names,
             sample_limit=body.sample_limit,
             similarity_threshold=body.similarity_threshold,
@@ -551,20 +549,20 @@ async def enrich_metadata(request: Request):
     if not api_key:
         api_key = settings.llm.api_key
 
-    text2sql_url = settings.metadata_enrichment.text2sql_api_url
+    fabric_url = settings.metadata_enrichment.data_fabric_url
 
     async def stream():
         # ---- precondition checks ----
         if not api_key:
             yield _ndjson({"event": "skip", "reason": "API 키 없음, 보강 생략"})
             return
-        if not text2sql_url:
-            yield _ndjson({"event": "skip", "reason": "TEXT2SQL_API_URL 미설정, 보강 생략"})
+        if not fabric_url:
+            yield _ndjson({"event": "skip", "reason": "DATA_FABRIC_URL 미설정, 보강 생략"})
             return
 
         client = Neo4jClient()
         try:
-            text2sql = Text2SqlClient(base_url=text2sql_url, datasource=datasource_name)
+            db = DataFabricClient(base_url=fabric_url, datasource=datasource_name)
             description_service = TableDescriptionService(
                 client=client, openai_client=AsyncOpenAI(api_key=api_key)
             )
@@ -592,8 +590,8 @@ async def enrich_metadata(request: Request):
             yield _ndjson({"event": "start", "phase": "description", "total": len(tables)})
 
             async with aiohttp.ClientSession() as session:
-                if not await text2sql.check_available(session):
-                    yield _ndjson({"event": "skip", "reason": "Text2SQL 서버 연결 불가"})
+                if not await db.check_available(session):
+                    yield _ndjson({"event": "skip", "reason": "data-fabric 연결 불가"})
                     return
 
                 enriched = 0
@@ -606,8 +604,7 @@ async def enrich_metadata(request: Request):
                     cols = table["columns"]
                     persisted = False
                     try:
-                        sample_sql = f'SELECT * FROM "{sname}"."{tname}" LIMIT 10'
-                        sample = await text2sql.fetch_rows(session, sample_sql)
+                        sample = await db.fetch_rows(session, DataFabricClient.sample_sql(f"{sname}.{tname}", 10))
                         if sample:
                             descs = await description_service.generate(tname, sname, sample, cols)
                             if descs:
@@ -634,7 +631,7 @@ async def enrich_metadata(request: Request):
                 })
 
                 # ---- Phase 2: FK 추론 ----
-                fk_service = FkInferenceService(neo4j_client=client, text2sql_client=text2sql)
+                fk_service = FkInferenceService(neo4j_client=client, db_client=db)
                 fk_persisted_total = 0
                 for schema in sorted(schemas_seen):
                     async for evt in fk_service.infer_and_persist(session, schema):
