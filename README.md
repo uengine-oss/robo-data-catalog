@@ -1,6 +1,6 @@
 # ROBO Data Catalog
 
-ROBO Data Catalog는 Analyzer가 만든 분석 그래프를 조회·편집하고, 스키마 검색·설명 보강·FK 추론·샘플 컨텍스트·리니지·DW 메타데이터를 제공하는 메타데이터 서비스입니다. 대상 데이터베이스 접속 정보와 실제 SQL 실행은 Data Fabric이 소유하며, Catalog는 `DATA_FABRIC_URL`의 `/api/query` 계약만 사용합니다.
+ROBO Data Catalog는 Analyzer가 만든 분석 그래프를 조회·편집하고, 스키마 검색·설명 보강·FK 추론·샘플 컨텍스트·리니지·DW 메타데이터를 제공하는 메타데이터 서비스입니다. 대상 데이터베이스 접속 정보와 실제 SQL 실행은 Data Fabric이 소유하며, Catalog는 `DATA_FABRIC_URL`의 `/api/query`에 datasource·대상 SELECT·최대 행 수를 분리해 전달합니다. MindsDB wrapper와 read-only 판정은 Data Fabric만 소유합니다.
 
 ## 책임 경계
 

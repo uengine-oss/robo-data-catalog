@@ -98,7 +98,7 @@ def classify(path: str) -> dict[str, str]:
     if path.startswith("tests/"):
         return _common(
             path, "단위 또는 외부 계약 회귀 검증", "unittest discovery", "유지보수자와 CI",
-            "fixed", "17개 테스트 discovery 통과; owner·Data Fabric 계약 포함",
+            "fixed", "18개 테스트 discovery 통과; owner·Data Fabric 계약 포함",
             contract="공개 계약과 cross-owner 불변식을 실행 가능한 테스트로 고정",
         )
 

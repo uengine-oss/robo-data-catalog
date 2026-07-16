@@ -613,7 +613,11 @@ async def enrich_metadata(request: Request, body: MetadataEnrichmentRequest):
                     cols = table["columns"]
                     persisted = False
                     try:
-                        sample = await db.fetch_rows(session, DataFabricClient.sample_sql(f"{sname}.{tname}", 10))
+                        sample = await db.fetch_rows(
+                            session,
+                            DataFabricClient.sample_sql(f"{sname}.{tname}", 10),
+                            max_rows=10,
+                        )
                         if sample:
                             descs = await description_service.generate(tname, sname, sample, cols)
                             if descs:

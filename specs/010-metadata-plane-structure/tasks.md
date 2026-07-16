@@ -8,4 +8,4 @@
 - [x] T006 README·실행 진입점·환경 template·SDD 문서를 실제 구조와 계약으로 갱신한다.
 - [ ] T007 혼합 owner 실제 Neo4j, Data Fabric 장애·timeout, Analyzer→Catalog→중앙 UI 전체 E2E를 통과한다.
 
-T007은 mock 기반 17개 unit/contract, compile, OpenAPI 검증과 별개다. 실제 서비스·DB 증거가 없으면 완료로 표시하지 않는다.
+T007은 mock 기반 18개 unit/contract, compile, OpenAPI 검증과 별개다. 실제 서비스·DB 증거가 없으면 완료로 표시하지 않는다.

@@ -225,4 +225,6 @@ class SampleContextService:
         limit: int,
     ) -> Optional[List[Dict[str, Any]]]:
         """data-fabric 경유 SELECT * LIMIT N."""
-        return await self._db.fetch_rows(session, DataFabricClient.sample_sql(table_fqn, limit))
+        return await self._db.fetch_rows(
+            session, DataFabricClient.sample_sql(table_fqn, limit), max_rows=limit
+        )

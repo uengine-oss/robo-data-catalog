@@ -1,8 +1,8 @@
 """Data Fabric API 클라이언트
 
 robo-data-fabric 의 `/api/query` 를 감싸는 얇은 클라이언트.
-SQL 은 MindsDB 네이티브 쿼리로 감싸져 대상 DB 에 **원문 그대로** 전달되므로,
-호출자는 대상 DB 방언(PostgreSQL 등) SQL 을 그대로 쓴다.
+호출자는 대상 DB 방언(PostgreSQL 등)의 read-only SQL을 전달하고, Data Fabric이
+datasource 검증·MindsDB native wrapper·최종 row limit을 소유한다.
 
 책임:
 - HTTP POST 호출 (재시도 3회, 2·4·6초 백오프)
@@ -81,6 +81,7 @@ class DataFabricClient:
         self,
         session: aiohttp.ClientSession,
         sql: str,
+        max_rows: int = 1000,
         max_retries: int = 3,
     ) -> Optional[List[Dict[str, Any]]]:
         """SQL 실행 → 행 리스트 반환 (실패·빈 결과 시 None).
@@ -90,9 +91,15 @@ class DataFabricClient:
         """
         if not self.is_configured:
             return None
+        if not 1 <= max_rows <= 1000:
+            raise ValueError("max_rows must be between 1 and 1000")
 
         url = f"{self._base_url}{QUERY_ENDPOINT}"
-        payload = {"query": self._as_native_query(sql)}
+        payload = {
+            "datasource": self._datasource,
+            "query": sql.rstrip().rstrip(";"),
+            "max_rows": max_rows,
+        }
 
         for attempt in range(max_retries):
             try:
@@ -137,10 +144,6 @@ class DataFabricClient:
                 log_process("FABRIC", "API_ERROR", type(e).__name__, logging.DEBUG)
 
         return None
-
-    def _as_native_query(self, sql: str) -> str:
-        """MindsDB 네이티브 쿼리 — 대상 DB 가 SQL 원문을 그대로 실행한다."""
-        return f"SELECT * FROM {self._datasource} ({sql.rstrip().rstrip(';')})"
 
     @staticmethod
     def _is_retryable(err_msg: str) -> bool:
