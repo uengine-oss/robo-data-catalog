@@ -11,6 +11,7 @@
 - 실제 MindsDB 등록 뒤 registry만 통제 실패시킨 보상 검증은 HTTP 500을 전달하고 MindsDB 별칭을 제거했다(`mindsdb_leaks=0`, target probe=real).
 - 중앙 UI에서 폼으로 datasource를 생성·목록 확인하고, Schema 기능에서 `comm_code` 2행/6열을 새 구조화 query 계약으로 조회한 뒤 UI에서 삭제했다. 대상 CRUD/query 응답은 모두 200이고 registry/MindsDB 누수는 0이다.
 - 코드 그래프 UI는 기본 IF/PARENT_OF 0, 숨김 표시 후 IF 1/PARENT_OF 1과 canvas 5 nodes/7 relationships, 복원 후 다시 0을 확인했다. `product_stock` 확장은 1/0에서 19/25로 바뀌었고 모든 노드는 실제 1-hop, 모든 관계는 원본 graph의 ID·양 끝·유형과 일치했다.
+- 선택적인 text2sql alarm SSE를 명시적 opt-in으로 바꾼 뒤 코드 그래프와 Fabric UI smoke 모두 console/network 오류 0으로 통과했다.
 - `CALLS` 자기연결 1개는 `dispatch_call` 원문의 실제 재귀 호출로 확인돼 `recursive=true`이며, 일반 661개 관계에는 true가 없다.
 
-T007은 아직 열어 둔다. datasource-scoped LLM enrichment와 destructive mixed-owner reset→재분석은 아직 실증하지 않았고, 중앙 UI Fabric 흐름은 통과했지만 전역 text2sql alarm SSE가 별개의 HTTP 500을 내므로 strict console/network-zero를 주장하지 않는다.
+T007은 아직 열어 둔다. destructive mixed-owner reset→재분석과 strict UI smoke는 통과했지만, Catalog에는 유효한 OpenAI provider credential이 없어 datasource-scoped LLM description 생성·저장을 실제 provider로 실증하지 못했다.
