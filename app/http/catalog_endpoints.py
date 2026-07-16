@@ -44,7 +44,6 @@ from app.http.catalog_requests import (
 )
 from app.graph.neo4j_context import Neo4jOverride, set_override
 from app.graph.client import Neo4jClient
-from app.graph.ownership import ANALYSIS_GRAPH_OWNER
 from app.system.settings import settings
 from app.graph import graph_queries, dw_schema, schema_queries, schema_edits
 from app.lineage import lineage_service
@@ -534,6 +533,7 @@ async def enrich_metadata(request: Request, body: MetadataEnrichmentRequest):
     이벤트 종류:
       - {event: start, phase: description, total: N}
       - {event: table_done, i, total, table, description_persisted: bool}
+      - {event: error, phase: description, table, error_type}
       - {event: phase_done, phase: description, enriched: N}
       - {event: fk_query_start, schema, threshold, min_src_distinct}
       - {event: fk_query_done, candidate_count}
@@ -547,7 +547,7 @@ async def enrich_metadata(request: Request, body: MetadataEnrichmentRequest):
     logger.info("[API] 메타데이터 보강 요청(스트림) | datasource=%s", datasource_name)
 
     import aiohttp
-    from openai import AsyncOpenAI
+    from app.external.openai_client import create_openai_client
     from app.metadata.description_enrichment import TableDescriptionService
 
     if not api_key:
@@ -568,26 +568,11 @@ async def enrich_metadata(request: Request, body: MetadataEnrichmentRequest):
         try:
             db = DataFabricClient(base_url=fabric_url, datasource=datasource_name)
             description_service = TableDescriptionService(
-                client=client, openai_client=AsyncOpenAI(api_key=api_key)
+                client=client, openai_client=create_openai_client(api_key)
             )
 
             # 보강 대상 테이블 조회
-            tables_query = {
-                "query": f"""
-                MATCH (t:TABLE)
-                WHERE t.graph_owner = '{ANALYSIS_GRAPH_OWNER}'
-                  AND coalesce(t.db, t.datasource) = $datasource
-                  AND (t.description IS NULL OR t.description = '' OR t.description = 'N/A')
-                OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:COLUMN {{graph_owner: '{ANALYSIS_GRAPH_OWNER}'}})
-                RETURN t.name AS table_name, t.schema AS schema_name,
-                       collect({
-                         name: c.name,
-                         dtype: c.dtype,
-                         description: c.description
-                       }) AS columns
-                """,
-                "parameters": {"datasource": datasource_name},
-            }
+            tables_query = schema_queries.metadata_enrichment_targets_query(datasource_name)
             results = await client.execute_queries([tables_query])
             tables = results[0] if results else []
 
@@ -621,12 +606,26 @@ async def enrich_metadata(request: Request, body: MetadataEnrichmentRequest):
                         if sample:
                             descs = await description_service.generate(tname, sname, sample, cols)
                             if descs:
-                                t_upd, _ = await description_service.persist(tname, sname, descs)
+                                t_upd, _ = await description_service.persist(
+                                    datasource_name, tname, sname, descs
+                                )
                                 enriched += t_upd
                                 persisted = bool(t_upd)
                     except Exception as e:
-                        # 한 테이블 실패가 전체 흐름을 막지 않음
-                        logger.warning("[ENRICH] table=%s failed | error_type=%s", tname, type(e).__name__)
+                        # 한 테이블 실패가 전체 흐름을 막지는 않되 조용히 성공으로 바꾸지 않는다.
+                        error_type = type(e).__name__
+                        logger.warning(
+                            "[ENRICH] table=%s failed | error_type=%s",
+                            tname,
+                            error_type,
+                        )
+                        yield _ndjson({
+                            "event": "error",
+                            "phase": "description",
+                            "table": tname,
+                            "error_type": error_type,
+                            "message": "Table metadata enrichment failed",
+                        })
 
                     yield _ndjson({
                         "event": "table_done",
@@ -659,8 +658,15 @@ async def enrich_metadata(request: Request, body: MetadataEnrichmentRequest):
                 })
 
         except Exception as e:
-            logger.error("[API] 메타데이터 보강 실패 | error_type=%s", type(e).__name__)
-            yield _ndjson({"event": "error", "message": "Metadata enrichment failed"})
+            error_type = type(e).__name__
+            logger.error(
+                "[API] 메타데이터 보강 실패 | error_type=%s", error_type, exc_info=True
+            )
+            yield _ndjson({
+                "event": "error",
+                "message": "Metadata enrichment failed",
+                "error_type": error_type,
+            })
         finally:
             await client.close()
 

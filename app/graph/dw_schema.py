@@ -58,8 +58,8 @@ async def register_star_schema(
     try:
         embedding_client = None
         if create_embeddings and api_key:
-            from openai import AsyncOpenAI
-            openai_client = AsyncOpenAI(api_key=api_key)
+            from app.external.openai_client import create_openai_client
+            openai_client = create_openai_client(api_key)
             embedding_client = EmbeddingClient(openai_client)
         graph_queries = []
         

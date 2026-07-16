@@ -54,7 +54,8 @@ HOST=0.0.0.0
 PORT=5503
 ```
 
-LLM 설명 보강과 임베딩을 사용할 때만 `LLM_API_KEY` 또는 요청별 API 키를 전달합니다. 대상 DB 비밀번호는 Catalog에 저장하거나 전달하지 않습니다.
+LLM 설명 보강과 임베딩을 사용할 때만 `LLM_API_KEY` 또는 요청별 API 키를 전달합니다.
+OpenAI-compatible provider는 `LLM_API_BASE`, `LLM_MODEL`, `LLM_MAX_COMPLETION_TOKENS`(기본 4096)로 한 곳에서 설정합니다. 대상 DB 비밀번호는 Catalog에 저장하거나 전달하지 않습니다.
 
 Electron이 `X-Neo4j-*` 헤더로 요청별 연결을 선택해야 하는 로컬 환경에서만 `CATALOG_ALLOW_NEO4J_HEADER_OVERRIDE=true`를 설정합니다. 기본값은 꺼짐이며, URI는 Neo4j 전용 scheme과 hostname을 통과해야 합니다.
 

@@ -11,9 +11,8 @@ from typing import Optional
 
 import numpy as np
 from fastapi import HTTPException
-from openai import AsyncOpenAI
-
 from app.external.embedding_client import EmbeddingClient
+from app.external.openai_client import create_openai_client
 from app.graph.client import Neo4jClient
 from app.graph.ownership import ANALYSIS_GRAPH_OWNER
 
@@ -40,7 +39,7 @@ async def search_tables_by_semantic(
 
     client = Neo4jClient()
     try:
-        openai_client = AsyncOpenAI(api_key=api_key)
+        openai_client = create_openai_client(api_key)
     except Exception as e:
         logger.warning("OpenAI client initialization failed | error_type=%s", type(e).__name__)
         raise HTTPException(400, {"error": "OpenAI API 키를 사용할 수 없습니다."}) from e
@@ -123,7 +122,7 @@ async def vectorize_schema_tables(
     if not api_key:
         raise HTTPException(400, {"error": "OpenAI API 키가 필요합니다."})
 
-    openai_client = AsyncOpenAI(api_key=api_key)
+    openai_client = create_openai_client(api_key)
     embedding_client = EmbeddingClient(openai_client)
 
     client = Neo4jClient()

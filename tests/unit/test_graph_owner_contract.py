@@ -65,6 +65,18 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("t.graph_owner = $graph_owner", query["query"])
         self.assertTrue(client.closed)
 
+    def test_metadata_enrichment_targets_are_owner_and_datasource_scoped(self):
+        query = schema_queries.metadata_enrichment_targets_query("shopmall")
+
+        self.assertEqual(
+            query["parameters"],
+            {"datasource": "shopmall", "graph_owner": "analyzer"},
+        )
+        self.assertIn("t.graph_owner = $graph_owner", query["query"])
+        self.assertIn("coalesce(t.db, t.datasource) = $datasource", query["query"])
+        self.assertIn("c:COLUMN {graph_owner: $graph_owner}", query["query"])
+        self.assertNotIn("shopmall", query["query"])
+
     async def test_schema_write_carries_owner_and_type_allowlist(self):
         with self.assertRaises(HTTPException):
             await schema_edits.create_schema_relationship(

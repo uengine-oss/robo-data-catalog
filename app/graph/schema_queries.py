@@ -19,6 +19,30 @@ logger = logging.getLogger(__name__)
 # 테이블 / 컬럼 조회
 # =============================================================================
 
+def metadata_enrichment_targets_query(datasource: str) -> dict:
+    """Build the owner-scoped query for tables that need descriptions."""
+    return {
+        "query": """
+            MATCH (t:TABLE)
+            WHERE t.graph_owner = $graph_owner
+              AND coalesce(t.db, t.datasource) = $datasource
+              AND (t.description IS NULL OR t.description = '' OR t.description = 'N/A')
+            OPTIONAL MATCH (t)-[:HAS_COLUMN]->(c:COLUMN {graph_owner: $graph_owner})
+            RETURN t.name AS table_name,
+                   t.schema AS schema_name,
+                   collect({
+                     name: c.name,
+                     dtype: c.dtype,
+                     description: c.description
+                   }) AS columns
+        """,
+        "parameters": {
+            "datasource": datasource,
+            "graph_owner": ANALYSIS_GRAPH_OWNER,
+        },
+    }
+
+
 async def fetch_schema_tables(
     search: Optional[str] = None,
     schema: Optional[str] = None,

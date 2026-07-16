@@ -10,9 +10,8 @@ import logging
 from typing import Optional
 
 from fastapi import HTTPException
-from openai import AsyncOpenAI
-
 from app.external.embedding_client import EmbeddingClient
+from app.external.openai_client import create_openai_client
 from app.graph.client import Neo4jClient
 from app.graph.ownership import ANALYSIS_GRAPH_OWNER
 
@@ -161,7 +160,7 @@ async def update_table_description(
         if api_key:
             embedding_updated = False
             try:
-                openai_client = AsyncOpenAI(api_key=api_key)
+                openai_client = create_openai_client(api_key)
                 embedding_client = EmbeddingClient(openai_client)
                 embedding = await embedding_client.embed_text(description)
                 if embedding:

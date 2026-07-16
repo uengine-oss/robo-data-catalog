@@ -27,6 +27,16 @@ DESCRIPTION_SOURCE = "sample_data_inference"
 SAMPLE_DATA_LIMIT = 10  # LLM 프롬프트용 샘플 데이터 최대 행 수
 
 
+class MetadataResponseError(RuntimeError):
+    """The provider returned no usable structured metadata response."""
+
+
+def _updated_count(results: list) -> int:
+    if not results or not results[0]:
+        return 0
+    return int(results[0][0].get("updated", 0))
+
+
 class TableDescriptionService:
     """샘플 데이터 기반 테이블/컬럼 설명 생성·저장."""
 
@@ -49,10 +59,18 @@ class TableDescriptionService:
                 model=settings.llm.model or "gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_completion_tokens=1000,
+                max_completion_tokens=settings.llm.max_completion_tokens,
                 response_format={"type": "json_object"},
             )
-            result = json.loads(response.choices[0].message.content)
+            choice = response.choices[0]
+            content = choice.message.content
+            if not content:
+                raise MetadataResponseError(
+                    f"provider returned empty content (finish_reason={choice.finish_reason})"
+                )
+            result = json.loads(content)
+            if not isinstance(result, dict):
+                raise MetadataResponseError("provider response must be a JSON object")
             log_process(
                 "METADATA",
                 "LLM_OK",
@@ -62,11 +80,16 @@ class TableDescriptionService:
             )
             return result
         except Exception as e:
-            log_process("METADATA", "LLM_ERROR", type(e).__name__, logging.WARNING)
-            return None
+            logger.exception(
+                "Metadata description generation failed | table=%s | error_type=%s",
+                table_name,
+                type(e).__name__,
+            )
+            raise
 
     async def persist(
         self,
+        datasource: str,
         table_name: str,
         schema_name: str,
         descriptions: Dict[str, Any],
@@ -77,13 +100,14 @@ class TableDescriptionService:
 
         table_desc = descriptions.get("table_description", "")
         if table_desc:
-            await self._update_table_description(table_name, schema_name, table_desc)
-            table_updated = 1
+            table_updated = await self._update_table_description(
+                datasource, table_name, schema_name, table_desc
+            )
 
         column_descs = descriptions.get("column_descriptions", {})
         if column_descs:
             columns_updated = await self._update_column_descriptions(
-                table_name, schema_name, column_descs
+                datasource, table_name, schema_name, column_descs
             )
         return table_updated, columns_updated
 
@@ -173,18 +197,23 @@ class TableDescriptionService:
 JSON만 응답하세요."""
 
     async def _update_table_description(
-        self, table_name: str, schema_name: str, description: str
-    ) -> None:
+        self, datasource: str, table_name: str, schema_name: str, description: str
+    ) -> int:
         query = """
-        MATCH (t:TABLE {name: $table_name, schema: $schema_name})
+        MATCH (t:TABLE {name: $table_name})
         WHERE t.graph_owner = $graph_owner
+          AND coalesce(t.db, t.datasource) = $datasource
+          AND (t.schema = $schema_name
+               OR ($schema_name = 'public' AND coalesce(t.schema, '') = ''))
           AND (t.description IS NULL OR t.description = '' OR t.description = 'N/A')
         SET t.description = $description,
             t.description_source = $source
+        RETURN count(t) AS updated
         """
-        await self.client.execute_queries([{
+        results = await self.client.execute_queries([{
             "query": query,
             "params": {
+                "datasource": datasource,
                 "table_name": table_name,
                 "schema_name": schema_name,
                 "description": description,
@@ -192,23 +221,33 @@ JSON만 응답하세요."""
                 "graph_owner": ANALYSIS_GRAPH_OWNER,
             },
         }])
+        return _updated_count(results)
 
     async def _update_column_descriptions(
-        self, table_name: str, schema_name: str, column_descs: Dict[str, str]
+        self,
+        datasource: str,
+        table_name: str,
+        schema_name: str,
+        column_descs: Dict[str, str],
     ) -> int:
         query = """
-        MATCH (t:TABLE {name: $table_name, schema: $schema_name})
+        MATCH (t:TABLE {name: $table_name})
           -[:HAS_COLUMN]->(c:COLUMN {name: $col_name})
         WHERE t.graph_owner = $graph_owner AND c.graph_owner = $graph_owner
+          AND coalesce(t.db, t.datasource) = $datasource
+          AND (t.schema = $schema_name
+               OR ($schema_name = 'public' AND coalesce(t.schema, '') = ''))
           AND (c.description IS NULL OR c.description = '' OR c.description = 'N/A')
         SET c.description = $description,
             c.description_source = $source
+        RETURN count(c) AS updated
         """
         updated = 0
         for col_name, col_desc in column_descs.items():
-            await self.client.execute_queries([{
+            results = await self.client.execute_queries([{
                 "query": query,
                 "params": {
+                    "datasource": datasource,
                     "table_name": table_name,
                     "schema_name": schema_name,
                     "col_name": col_name,
@@ -217,5 +256,5 @@ JSON만 응답하세요."""
                     "graph_owner": ANALYSIS_GRAPH_OWNER,
                 },
             }])
-            updated += 1
+            updated += _updated_count(results)
         return updated

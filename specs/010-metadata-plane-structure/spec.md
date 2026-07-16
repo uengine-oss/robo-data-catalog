@@ -20,6 +20,8 @@ Neo4j의 Architect·Fabric 데이터를 훼손할 수 있다.
 - 새 owner marker가 없는 과거 분석 노드는 UPPER_SNAKE 분석 라벨 계약으로만 제한 분류하며 PascalCase
   Architect/Fabric 노드를 포괄 삭제하지 않는다.
 - Catalog가 편집·보강한 Analyzer graph node의 owner는 Analyzer로 유지한다.
+- OpenAI-compatible client 생성은 `app/external` 한 경계에서 `LLM_API_BASE`와 request/environment key를
+  결합하며 description·semantic search·embedding이 같은 provider 설정을 재사용한다.
 - 내부 deploy와 확인된 잡파일을 제거하고 README를 실제 구조·계약·검증으로 갱신한다.
 
 ## Acceptance
@@ -29,4 +31,4 @@ Neo4j의 Architect·Fabric 데이터를 훼손할 수 있다.
 3. Catalog의 sample/search/enrichment/FK/lineage 계약이 이동 전과 동일하거나 명시된 supersede 계약을 따른다.
 4. Catalog 소유 경로·클래스명에서 `analyzer`가 0이다.
 5. 전체 runtime 파일이 수정·삭제·위반 없음 중 하나로 근거와 함께 분류된다.
-
+6. 실제 provider에서 datasource sample 기반 description이 생성되고 Analyzer owner TABLE/COLUMN에만 저장된다.

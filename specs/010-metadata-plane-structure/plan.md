@@ -9,7 +9,7 @@ app/
 ├── graph/{client,neo4j_context,graph_queries,schema_queries,schema_edits,dw_schema}.py
 ├── metadata/{description_enrichment,fk_inference,sample_context,semantic_search}.py
 ├── lineage/{lineage_service,sql_lineage_extractor}.py
-├── external/{data_fabric_client,embedding_client}.py
+├── external/{data_fabric_client,embedding_client,openai_client}.py
 └── system/{settings,logging}.py
 tests/{unit,integration,contract,e2e}/
 ```
@@ -23,4 +23,4 @@ responsibility→external/graph 방향만 허용한다. graph owner 판정과 de
 - import/compile/unit 및 Data Fabric contract test.
 - 혼합 owner fixture에서 check/delete 격리 검증.
 - Analyzer 재분석→Catalog sample/enrich/search/lineage→중앙 UI E2E.
-
+- 실제 OpenAI-compatible provider로 datasource sample→description 생성→owner-scoped Neo4j 저장 검증.

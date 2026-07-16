@@ -39,7 +39,11 @@ class Neo4jConfig:
 @dataclass(frozen=True)
 class LLMConfig:
     api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY", ""))
+    api_base: str = field(default_factory=lambda: os.getenv("LLM_API_BASE", "").rstrip("/"))
     model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "gpt-4.1"))
+    max_completion_tokens: int = field(
+        default_factory=lambda: int(os.getenv("LLM_MAX_COMPLETION_TOKENS", "4096"))
+    )
     embedding_model: str = field(default_factory=lambda: os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"))
 
 
