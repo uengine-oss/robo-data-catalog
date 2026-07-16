@@ -1,0 +1,89 @@
+"""ROBO Data Catalog 환경변수 설정"""
+
+import os
+from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
+from dotenv import load_dotenv, find_dotenv
+
+# .env 파일 로드 (프로젝트 내부 → 상위 디렉토리 순으로 탐색)
+project_root = Path(__file__).resolve().parents[2]
+_env_path = project_root / ".env"
+if not _env_path.exists():
+    _env_path = find_dotenv(usecwd=True)
+load_dotenv(dotenv_path=_env_path)
+
+
+def _get_base_dir() -> str:
+    if os.getenv("DOCKER_COMPOSE_CONTEXT"):
+        return os.getenv("DOCKER_COMPOSE_CONTEXT")
+    return str(Path(__file__).resolve().parents[2])
+
+
+def _get_cors_origins() -> tuple[str, ...]:
+    raw = os.getenv(
+        "CATALOG_CORS_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3003,http://127.0.0.1:3003",
+    )
+    return tuple(origin.strip() for origin in raw.split(",") if origin.strip())
+
+
+@dataclass(frozen=True)
+class Neo4jConfig:
+    uri: str = field(default_factory=lambda: os.getenv("NEO4J_URI", "bolt://127.0.0.1:7687"))
+    user: str = field(default_factory=lambda: os.getenv("NEO4J_USER", "neo4j"))
+    password: str = field(default_factory=lambda: os.getenv("NEO4J_PASSWORD", "neo4j"))
+    database: str = field(default_factory=lambda: os.getenv("NEO4J_DATABASE", "neo4j"))
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY", ""))
+    model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "gpt-4.1"))
+    embedding_model: str = field(default_factory=lambda: os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"))
+
+
+@dataclass(frozen=True)
+class PathConfig:
+    base_dir: str = field(default_factory=_get_base_dir)
+
+    @property
+    def data_dir(self) -> str:
+        return os.path.join(self.base_dir, "data")
+
+
+@dataclass(frozen=True)
+class MetadataEnrichmentConfig:
+    data_fabric_url: str = field(default_factory=lambda: os.getenv("DATA_FABRIC_URL", ""))
+    fk_inference_enabled: bool = field(default_factory=lambda: os.getenv("FK_INFERENCE_ENABLED", "true").lower() == "true")
+    fk_sample_size: int = field(default_factory=lambda: int(os.getenv("FK_SAMPLE_SIZE", "25")))
+    fk_similarity_threshold: float = field(default_factory=lambda: float(os.getenv("FK_SIMILARITY_THRESHOLD", "0.8")))
+    fk_match_ratio_threshold: float = field(default_factory=lambda: float(os.getenv("FK_MATCH_RATIO_THRESHOLD", "0.8")))
+    fk_concurrency: int = field(default_factory=lambda: int(os.getenv("FK_CONCURRENCY", "5")))
+    timeout_connect: int = field(default_factory=lambda: int(os.getenv("METADATA_TIMEOUT_CONNECT", "5")))
+    timeout_request: int = field(default_factory=lambda: int(os.getenv("METADATA_TIMEOUT_REQUEST", "30")))
+
+
+@dataclass(frozen=True)
+class CatalogConfig:
+    neo4j: Neo4jConfig = field(default_factory=Neo4jConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
+    path: PathConfig = field(default_factory=PathConfig)
+    metadata_enrichment: MetadataEnrichmentConfig = field(default_factory=MetadataEnrichmentConfig)
+
+    version: str = "2.0.0"
+    api_prefix: str = "/robo"
+    host: str = field(default_factory=lambda: os.getenv("HOST", "0.0.0.0"))
+    port: int = field(default_factory=lambda: int(os.getenv("PORT", "5503")))
+    cors_origins: tuple[str, ...] = field(default_factory=_get_cors_origins)
+    allow_neo4j_header_override: bool = field(
+        default_factory=lambda: os.getenv("CATALOG_ALLOW_NEO4J_HEADER_OVERRIDE", "false").lower() == "true"
+    )
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> CatalogConfig:
+    return CatalogConfig()
+
+
+settings = get_settings()

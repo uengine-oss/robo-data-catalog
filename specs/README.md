@@ -22,7 +22,7 @@ and the sample-context the analyzer reads back during a run.
 
 | # | Spec | One-liner |
 |---|------|-----------|
-| 001 | [Graph Query & Data Lifecycle](001-graph-query-lifecycle/spec.md) | check-data / full graph / related-tables / delete |
+| 001 | [Graph Query & Data Lifecycle](001-graph-query-lifecycle/spec.md) | historical graph/delete contract; owner lifecycle superseded by 010 |
 | 002 | [Schema Browse & Edit](002-schema-browse-edit/spec.md) | tables/columns/relationships/descriptions browse + edit (user edits isolated from analysis) |
 | 003 | [Semantic Search & Schema Vectorization](003-semantic-search-vectorize/spec.md) | embed table descriptions; cosine semantic search |
 | 004 | [Data Lineage & ETL Analysis](004-data-lineage-etl/spec.md) | lineage graph + ETL-SQL lineage extraction (⚠ analyzer contract mismatch) |

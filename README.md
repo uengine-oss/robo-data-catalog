@@ -1,162 +1,83 @@
 # ROBO Data Catalog
 
-데이터 자산 조회·편집·보강·리니지 관리 마이크로서비스 (v2.0.0).
+ROBO Data Catalog는 Analyzer가 만든 분석 그래프를 조회·편집하고, 스키마 검색·설명 보강·FK 추론·샘플 컨텍스트·리니지·DW 메타데이터를 제공하는 메타데이터 서비스입니다. 대상 데이터베이스 접속 정보와 실제 SQL 실행은 Data Fabric이 소유하며, Catalog는 `DATA_FABRIC_URL`의 `/api/query` 계약만 사용합니다.
 
-`robo-data-analyzer`에서 분리된 독립 서비스로, Neo4j에 저장된 스키마/그래프 데이터의 **조회·편집·메타데이터 보강**을 담당합니다.
+## 책임 경계
 
-## 주요 기능
+- Analyzer: 소스와 DDL을 분석하여 `graph_owner="analyzer"`인 그래프를 생성합니다.
+- Catalog: 분석 그래프를 조회·편집·보강하고 검색, 리니지, 샘플 컨텍스트 API를 제공합니다. 전체 Neo4j나 DataSource registry를 삭제하지 않습니다.
+- Data Fabric: 데이터소스 연결 등록, MindsDB 연결 관리, 실제 DB 쿼리 실행만 담당합니다. 메타데이터 추출이나 별도 UI는 소유하지 않습니다.
 
-- 테이블/컬럼/관계 조회 및 편집
-- 시멘틱 검색 (임베딩 기반)
-- **메타데이터 보강** (LLM description 생성 + FK 자동 추론, NDJSON 스트리밍)
-- **분석 세션용 테이블 샘플 컨텍스트** 제공 (analyzer 연동)
-- 데이터 리니지 조회 및 ETL SQL 분석
-- DW 스타스키마 등록/삭제
-- 스키마 벡터화
+Catalog의 `check-data`, 그래프 조회, 초기화는 Analyzer 소유 그래프만 대상으로 합니다. `GLOSSARY`, `EMBED_META` 같은 시스템 노드는 사용자 그래프 응답에서 제외됩니다.
 
-## 대상 DB 접근 (data-fabric 경유)
+## 구조
 
-catalog 는 대상 DB 에 **직접 붙지 않는다.** 샘플 행 조회와 FK 추론 SQL 은 모두
-`data-fabric`(8004) 의 `/api/query` 로 나가고, data-fabric 이 MindsDB **네이티브 쿼리 패스스루**로
-대상 DB 에 SQL 원문을 그대로 전달한다. 따라서 SQL 은 대상 DB 방언(PostgreSQL 등) 그대로 쓴다.
-
-```
-catalog ──POST /api/query──> data-fabric(8004) ──> MindsDB ──> 대상 DB(PostgreSQL 등)
-```
-
-- 단일 클라이언트: `service/data_fabric_client.py`
-- 설정: `DATA_FABRIC_URL` (없으면 샘플 보강·FK 추론이 skip 된다)
-- FK 추론은 대상 PG 에 `public.infer_fk_candidates(...)` 함수가 설치돼 있어야 한다
-  (`scripts/install_fk_function.sql`) — MindsDB 패스스루로 그대로 호출된다.
-
-## 아키텍처
-
-```
-robo-data-catalog (port 5503)
-├── api/
-│   ├── catalog_router.py        # FastAPI 라우터(prefix /robo)
-│   └── request_models.py
-├── service/                     # 비즈니스 로직
-│   ├── schema_query_service.py      # 테이블/컬럼/관계 조회
-│   ├── schema_edit_service.py       # 설명 편집·관계 추가/삭제
-│   ├── schema_search_service.py     # 시멘틱 검색·벡터화
-│   ├── table_description_service.py # description 생성
-│   ├── fk_inference_service.py      # FK 자동 추론
-│   ├── sample_context_service.py    # 분석 세션 샘플 컨텍스트
-│   ├── graph_query_service.py       # 그래프 조회
-│   ├── data_lineage_service.py      # 리니지·ETL 분석
-│   ├── dw_schema_service.py         # DW 스타스키마
-│   └── data_fabric_client.py        # 대상 DB SQL 실행 (data-fabric → MindsDB 네이티브 쿼리)
-├── client/
-│   ├── neo4j_client.py
-│   ├── connection_context.py        # 요청별 Neo4j override(X-Neo4j-*)
-│   └── embedding_client.py
-├── config/settings.py
-└── main.py                      # 진입점
+```text
+app/
+  main.py                    FastAPI 진입점과 공통 미들웨어
+  http/                      HTTP endpoint와 요청 계약
+  graph/                     Neo4j 연결, 조회·편집, DW graph 작업
+  metadata/                  설명 보강, FK 추론, 샘플, 시맨틱 검색
+  lineage/                   리니지 서비스와 SQL 리니지 추출기
+  external/                  Data Fabric·embedding 외부 연동
+  system/                    설정과 로깅
+tests/
+  unit/                      소유권·가시성 등 국소 검증
+  contract/                  외부 HTTP 계약 검증
+scripts/                     운영에 필요한 DB 보조 스크립트
+specs/                       기능·계약·구조 결정 기록
 ```
 
-## API 엔드포인트
+`api`, `service`, `client`, `config`처럼 기술 계층만 나타내는 기존 최상위 패키지는 사용하지 않습니다. Catalog 소유 경로·파일·클래스에도 Analyzer 구현 이름을 두지 않습니다.
 
-> 편집/검색/벡터화/DW/보강 엔드포인트는 **`X-API-Key`** 헤더 필수. Electron 임베드 시 요청별 **`X-Neo4j-URI/User/Password/Database`** 헤더로 연결 override 가능(미지정 시 `.env` 폴백).
+## 실행
 
-### 헬스체크
-| Method | Path | 설명 |
-|--------|------|------|
-| GET | `/` | 서비스 상태 |
-| GET | `/health` | 헬스 |
+Python 가상환경을 만든 뒤 다음과 같이 실행합니다.
 
-### 그래프 데이터
-| Method | Path | 설명 |
-|--------|------|------|
-| GET | `/robo/check-data/` | 데이터 존재 확인 |
-| GET | `/robo/graph/` | 전체 그래프 조회 `{Nodes, Relationships}` |
-| GET | `/robo/graph/related-tables/{name}` | 관련 테이블 조회 |
-| DELETE | `/robo/delete/` | 데이터 삭제 |
+```powershell
+python -m pip install -r requirements.txt
+$env:PYTHONPATH = "."
+python -m uvicorn app.main:app --host 0.0.0.0 --port 5503
+```
 
-### 스키마
-| Method | Path | 설명 |
-|--------|------|------|
-| GET | `/robo/schema/tables` | 테이블 목록 |
-| GET | `/robo/schema/tables/{name}/columns` | 컬럼 목록 |
-| GET | `/robo/schema/tables/{name}/references` | 참조 프로시저 |
-| GET | `/robo/schema/procedures/{name}/statements` | Statement 조회 |
-| GET | `/robo/schema/relationships` | 관계 목록 |
-| POST | `/robo/schema/relationships` | 관계 추가 |
-| DELETE | `/robo/schema/relationships` | 관계 삭제 |
-| POST | `/robo/schema/semantic-search` | 시멘틱 검색 |
-| PUT | `/robo/schema/tables/{name}/description` | 테이블 설명 수정 |
-| PUT | `/robo/schema/tables/{name}/columns/{col}/description` | 컬럼 설명 수정 |
-| POST | `/robo/schema/vectorize` | 스키마 벡터화 |
-
-### 메타데이터 보강
-| Method | Path | 설명 |
-|--------|------|------|
-| POST | `/robo/schema/enrich-metadata` | description 생성 + FK 추론 (NDJSON 스트림) |
-| POST | `/robo/tables/sample-context` | 테이블명 batch 매칭 + 샘플 행 반환 (analyzer 호출) |
-
-### 리니지
-| Method | Path | 설명 |
-|--------|------|------|
-| GET | `/robo/lineage/` | 리니지 그래프 조회 |
-| POST | `/robo/lineage/analyze/` | ETL SQL 리니지 분석 |
-
-### DW 스타스키마
-| Method | Path | 설명 |
-|--------|------|------|
-| POST | `/robo/schema/dw-tables` | 스타스키마 등록 |
-| DELETE | `/robo/schema/dw-tables/{cube}` | 스타스키마 삭제 |
-
-## 실행 방법
-
-### 환경 변수 (.env)
+주요 환경 변수는 `.env.example`을 기준으로 설정합니다.
 
 ```env
-# Neo4j
 NEO4J_URI=bolt://127.0.0.1:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your_password
 NEO4J_DATABASE=neo4j
-
-# LLM (메타데이터 보강 / 임베딩)
-LLM_API_KEY=                 # 또는 OPENAI_API_KEY
-LLM_MODEL=gpt-4.1
-EMBEDDING_MODEL=text-embedding-3-small
-
-# 메타데이터 보강 (Data Fabric 연동 — 샘플 행 조회 + FK 추론 SQL)
-DATA_FABRIC_URL=http://127.0.0.1:8004
-FK_INFERENCE_ENABLED=true
-FK_SAMPLE_SIZE=25
-FK_SIMILARITY_THRESHOLD=0.8
-
-# 서버
+DATA_FABRIC_URL=http://127.0.0.1:8404
+CATALOG_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+CATALOG_ALLOW_NEO4J_HEADER_OVERRIDE=false
 HOST=0.0.0.0
 PORT=5503
 ```
 
-### 설치 및 실행
+LLM 설명 보강과 임베딩을 사용할 때만 `LLM_API_KEY` 또는 요청별 API 키를 전달합니다. 대상 DB 비밀번호는 Catalog에 저장하거나 전달하지 않습니다.
 
-```bash
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 5503
+Electron이 `X-Neo4j-*` 헤더로 요청별 연결을 선택해야 하는 로컬 환경에서만 `CATALOG_ALLOW_NEO4J_HEADER_OVERRIDE=true`를 설정합니다. 기본값은 꺼짐이며, URI는 Neo4j 전용 scheme과 hostname을 통과해야 합니다.
+
+## 주요 API
+
+- `GET /health`: 서비스 상태
+- `GET /robo/check-data/`: Analyzer 소유 그래프 존재 여부
+- `GET /robo/graph/`: 사용자에게 표시할 분석 그래프
+- `DELETE /robo/delete/`: Analyzer 소유 그래프 삭제
+- `/robo/schema/*`: 스키마 조회·편집·검색·벡터화·DW 메타데이터
+- `POST /robo/tables/sample-context`: 분석 세션용 테이블 매칭·샘플 컨텍스트
+- `GET /robo/lineage/`, `POST /robo/lineage/analyze/`: 리니지 조회·SQL 추출
+- `POST /robo/schema/enrich-metadata`: 설명 보강과 FK 추론 NDJSON 스트림
+
+전체 요청·응답 계약은 실행 후 `http://localhost:5503/docs`에서 확인할 수 있습니다. 스키마 편집·검색·보강 API의 인증 헤더와 요청별 Neo4j override 계약은 OpenAPI 정의를 따릅니다.
+
+## 검증
+
+```powershell
+$env:PYTHONPATH = "."
+.venv\Scripts\python.exe -m unittest discover -s tests -t . -p "test_*.py"
+.venv\Scripts\python.exe -m compileall -q app tests
+.venv\Scripts\python.exe -c "from app.main import app; print(len(app.openapi()['paths']))"
 ```
 
-### API 문서
-실행 후 http://localhost:5503/docs 에서 Swagger UI 확인 가능.
-
-## 기술 스택
-
-FastAPI 0.115 · uvicorn · Neo4j Python Driver 5.28(async) · OpenAI / LangChain(LLM 보강·임베딩) · rapidfuzz(테이블명 매칭) · lxml(SQL 파싱) · numpy
-
-## Neo4j 노드 (읽기 대상)
-
-분석 서비스(`robo-data-analyzer`)가 생성한 그래프 데이터를 조회/편집합니다. 노드 라벨은 **UPPER_SNAKE**입니다:
-
-- 코드 노드: `FUNCTION`, `VARIABLE`, `PROCEDURE`, `METHOD`, `TRIGGER`
-- 스키마 노드: `TABLE`, `COLUMN`
-- 리니지 노드: `DataSource`, `ETLProcess`
-
-관계:
-- `HAS_COLUMN` (TABLE→COLUMN)
-- `FK_TO_TABLE` (TABLE→TABLE), `FK_TO_COLUMN` (COLUMN→COLUMN)
-- `READS` / `WRITES` (코드→TABLE), `REFER_TO`, `FROM`
-- `PARENT_OF` (프로시저→하위 statement)
+단위·계약 테스트 통과만으로 실제 연동 완료를 주장하지 않습니다. Neo4j, Data Fabric, MindsDB, 대상 DB가 필요한 통합 검증은 각 서비스를 실행한 상태에서 별도로 수행하고 실패·타임아웃·부분 복구 경로까지 확인해야 합니다.

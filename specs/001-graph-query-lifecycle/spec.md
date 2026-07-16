@@ -4,7 +4,11 @@
 
 **Created**: 2026-06-15
 
-**Status**: Backfilled (reverse-engineered)
+**Status**: Superseded by spec 010 for graph ownership and delete scope
+
+> 이 문서는 기존 계약의 역사 기록이다. 현재 check-data, graph 조회, delete는
+> graph_owner='analyzer' 경계만 사용하며 DataSource·Architect 노드를 건드리지 않는다.
+> 현재 진실은 specs/010-metadata-plane-structure/spec.md를 따른다.
 
 **Input**: 기존 구현으로부터 역설계. robo-data-catalog(FastAPI, 포트 5503)의 그래프 조회·생애주기 엔드포인트 4종 — `GET /robo/check-data/`, `GET /robo/graph/`, `GET /robo/graph/related-tables/{table_name}`, `DELETE /robo/delete/`.
 

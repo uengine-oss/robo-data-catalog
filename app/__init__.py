@@ -1,0 +1,1 @@
+"""Robo Data Catalog application."""
