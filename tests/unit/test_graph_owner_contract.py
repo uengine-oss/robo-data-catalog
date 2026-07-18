@@ -3,15 +3,16 @@ import unittest
 
 from fastapi import HTTPException
 
-from app.graph import dw_schema, graph_queries, schema_edits, schema_queries
-from app.graph.neo4j_context import Neo4jOverride
-from app.lineage import lineage_service, sql_lineage_extractor
-from app.metadata import (
-    description_enrichment,
-    fk_inference,
-    sample_context,
-    semantic_search,
-)
+from graph import queries as analysis_graph_queries
+from graph import schema_commands as schema_metadata_commands
+from graph import schema_queries as schema_metadata_queries
+from graph.connection import RequestGraphConnection
+from lineage import queries as lineage_graph_queries
+from lineage import sql_extract as sql_lineage_extraction
+from enrichment import foreign_keys as foreign_key_inference
+from enrichment import description as table_description_enrichment
+from search import semantic as metadata_semantic_search
+from table_samples import context as table_sample_context
 
 
 class _RecordingClient:
@@ -30,7 +31,7 @@ class _RecordingClient:
 
 class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
     def test_neo4j_override_accepts_only_neo4j_uri_without_embedded_credentials(self):
-        override = Neo4jOverride.from_headers({
+        override = RequestGraphConnection.from_headers({
             "x-neo4j-uri": "bolt://127.0.0.1:7687",
             "x-neo4j-user": "neo4j",
             "x-neo4j-password": "secret",
@@ -38,13 +39,24 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(override)
         for uri in ("http://127.0.0.1:7687", "bolt://user:pass@127.0.0.1:7687", "bolt:///missing"):
             with self.subTest(uri=uri), self.assertRaises(ValueError):
-                Neo4jOverride.from_headers({"x-neo4j-uri": uri})
+                RequestGraphConnection.from_headers({"x-neo4j-uri": uri})
+        with self.assertRaises(ValueError):
+            RequestGraphConnection.from_headers({
+                "x-neo4j-uri": "bolt://127.0.0.1:7687",
+                "x-neo4j-database": "system",
+            })
 
     def test_every_graph_domain_module_declares_owner_boundary(self):
         modules = (
-            dw_schema, graph_queries, schema_edits, schema_queries,
-            lineage_service, sql_lineage_extractor,
-            description_enrichment, fk_inference, sample_context, semantic_search,
+            analysis_graph_queries,
+            schema_metadata_commands,
+            schema_metadata_queries,
+            lineage_graph_queries,
+            sql_lineage_extraction,
+            table_description_enrichment,
+            foreign_key_inference,
+            table_sample_context,
+            metadata_semantic_search,
         )
         for module in modules:
             with self.subTest(module=module.__name__):
@@ -52,12 +64,12 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_schema_read_carries_owner_parameter(self):
         client = _RecordingClient()
-        original = schema_queries.Neo4jClient
-        schema_queries.Neo4jClient = lambda: client
+        original = schema_metadata_queries.CatalogGraphDatabase
+        schema_metadata_queries.CatalogGraphDatabase = lambda: client
         try:
-            self.assertEqual(await schema_queries.fetch_schema_tables(limit=5000), [])
+            self.assertEqual(await schema_metadata_queries.fetch_schema_tables(limit=5000), [])
         finally:
-            schema_queries.Neo4jClient = original
+            schema_metadata_queries.CatalogGraphDatabase = original
 
         query = client.calls[0][0][0]
         self.assertEqual(query["parameters"]["graph_owner"], "analyzer")
@@ -66,7 +78,7 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(client.closed)
 
     def test_metadata_enrichment_targets_are_owner_and_datasource_scoped(self):
-        query = schema_queries.metadata_enrichment_targets_query("shopmall")
+        query = schema_metadata_queries.metadata_enrichment_targets_query("shopmall")
 
         self.assertEqual(
             query["parameters"],
@@ -79,19 +91,19 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_schema_write_carries_owner_and_type_allowlist(self):
         with self.assertRaises(HTTPException):
-            await schema_edits.create_schema_relationship(
+            await schema_metadata_commands.create_schema_relationship(
                 "a", "public", "id", "b", "public", "id", "X]->(n) DETACH DELETE n //",
             )
 
         client = _RecordingClient([[{"from_table": "a", "to_table": "b"}]])
-        original = schema_edits.Neo4jClient
-        schema_edits.Neo4jClient = lambda: client
+        original = schema_metadata_commands.CatalogGraphDatabase
+        schema_metadata_commands.CatalogGraphDatabase = lambda: client
         try:
-            result = await schema_edits.create_schema_relationship(
+            result = await schema_metadata_commands.create_schema_relationship(
                 "a", "public", "id", "b", "public", "id", "FK_TO_TABLE",
             )
         finally:
-            schema_edits.Neo4jClient = original
+            schema_metadata_commands.CatalogGraphDatabase = original
 
         self.assertTrue(result["created"])
         query = client.calls[0][0][0]
@@ -100,12 +112,12 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_lineage_read_is_owner_scoped(self):
         client = _RecordingClient([[]])
-        original = lineage_service.Neo4jClient
-        lineage_service.Neo4jClient = lambda: client
+        original = lineage_graph_queries.CatalogGraphDatabase
+        lineage_graph_queries.CatalogGraphDatabase = lambda: client
         try:
-            result = await lineage_service.fetch_lineage_graph()
+            result = await lineage_graph_queries.fetch_lineage_graph()
         finally:
-            lineage_service.Neo4jClient = original
+            lineage_graph_queries.CatalogGraphDatabase = original
 
         self.assertEqual(result["stats"]["flowCount"], 0)
         self.assertIn("graph_owner = 'analyzer'", client.calls[0][0][0])

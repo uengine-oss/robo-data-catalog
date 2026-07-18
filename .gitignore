@@ -24,3 +24,6 @@ build/
 
 # Claude Code
 .claude
+
+# Local code-index cache
+.codegraph/
