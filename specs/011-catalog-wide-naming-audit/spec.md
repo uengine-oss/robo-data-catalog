@@ -1,7 +1,7 @@
 # Feature Specification: Catalog 전 파일 책임·명명 재감사
 
 **Created**: 2026-07-17
-**Status**: In progress
+**Status**: Complete
 
 ## Requirements
 
@@ -19,17 +19,18 @@
 전체 inventory/ledger 일치, old ambiguous paths 0, compile/full tests, mixed-owner Neo4j, Data Fabric contract,
 metadata enrichment/search/lineage 실제 API와 중앙 UI가 통과한다.
 
-## GOAL-D final-structure binding
+## Final target-tree binding
 
-`D:/work/robo/GOAL-D/02-최종구조.md` §2 is a required executable contract.
-The current long-name v10 WIP is an intermediate state, not the final tree.
+`D:/work/robo/세서비스-최종트리.md` §2 is the target-tree contract. It is a
+static target rather than an authority over source code, so the completed
+implementation, audit ledger, and executable verifier remain the final judges.
 
-- Move settings and logging to `app/{settings,observability}.py`.
-- Split the monolithic router into `app/api/{graph,lineage,schema,schema_edit,
+- Move settings and logging to root `settings.py` and `observability.py`.
+- Split the monolithic router into `api/{graph,lineage,schema,schema_edit,
   search,table_samples,enrichment,graph_connection,errors}.py`.
-- Split request contracts by domain under `app/contracts/` and keep relation
+- Split request contracts by domain under `contracts/` and keep relation
   type data in one owner.
-- Move the enrichment use case to `app/enrichment/{orchestrator,events,
+- Move the enrichment use case to `enrichment/{orchestrator,events,
   description,foreign_keys}.py`; endpoint code only streams the use case.
 - Materialize `search/semantic.py`, `table_samples/{resolver,context}.py`,
   `lineage/{queries,sql_extract}.py`, the final graph modules, and explicit

@@ -1,6 +1,6 @@
 # ROBO Data Catalog
 
-ROBO Data Catalog는 Analyzer가 만든 분석 그래프를 조회·편집하고, 스키마 검색·설명 보강·FK 추론·샘플 컨텍스트·리니지·DW 메타데이터를 제공하는 메타데이터 서비스입니다. 대상 데이터베이스 접속 정보와 실제 SQL 실행은 Data Fabric이 소유하며, Catalog는 `DATA_FABRIC_URL`의 `/api/query`에 datasource·대상 SELECT·최대 행 수를 분리해 전달합니다. MindsDB wrapper와 read-only 판정은 Data Fabric만 소유합니다.
+ROBO Data Catalog는 Analyzer가 만든 분석 그래프를 조회·편집하고, 스키마 검색·설명 보강·FK 추론·샘플 컨텍스트·리니지·스키마 메타데이터를 제공하는 서비스입니다. 대상 데이터베이스 접속 정보와 실제 SQL 실행은 Data Fabric이 소유하며, Catalog는 `DATA_FABRIC_URL`의 `/api/query`에 datasource·대상 SELECT·최대 행 수를 분리해 전달합니다. MindsDB wrapper와 read-only 판정은 Data Fabric만 소유합니다.
 
 ## 책임 경계
 
@@ -69,7 +69,7 @@ Electron이 `X-Neo4j-*` 헤더로 요청별 연결을 선택해야 하는 로컬
 - `GET /robo/check-data/`: Analyzer 소유 그래프 존재 여부
 - `GET /robo/graph/`: 사용자에게 표시할 분석 그래프
 - `DELETE /robo/delete/`: Analyzer 소유 그래프 삭제
-- `/robo/schema/*`: 스키마 조회·편집·검색·벡터화·DW 메타데이터
+- `/robo/schema/*`: 스키마 조회·편집·검색·벡터화 메타데이터
 - `POST /robo/tables/sample-context`: 분석 세션용 테이블 매칭·샘플 컨텍스트
 - `GET /robo/lineage/`, `POST /robo/lineage/analyze/`: 리니지 조회·SQL 추출
 - `POST /robo/schema/enrich-metadata`: 설명 보강과 FK 추론 NDJSON 스트림
@@ -81,7 +81,7 @@ Electron이 `X-Neo4j-*` 헤더로 요청별 연결을 선택해야 하는 로컬
 ```powershell
 $env:PYTHONPATH = "."
 .venv\Scripts\python.exe -m unittest discover -s tests -t . -p "test_*.py"
-.venv\Scripts\python.exe -m compileall -q app tests
+.venv\Scripts\python.exe -m compileall -q main.py settings.py observability.py api contracts enrichment external graph lineage search table_samples tests
 .venv\Scripts\python.exe -c "from main import app; print(len(app.openapi()['paths']))"
 ```
 

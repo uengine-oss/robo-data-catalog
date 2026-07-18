@@ -5,7 +5,7 @@
 - [x] T003 Apply explicit Catalog-owned paths and symbol names with git history preservation.
 - [x] T004 Remove proven ignored legacy residue and dead dependencies.
 - [x] T005 Update README/contracts and run static/full/integration/live/UI verification.
-- [x] T006 Bind every current Catalog runtime file to GOAL-D §2 with post-WIP actions.
+- [x] T006 Bind every current Catalog runtime file to `D:/work/robo/세서비스-최종트리.md` §2 with post-WIP actions.
 - [x] T007 Split API/contracts/enrichment and materialize the final graph/search/sample/external owners.
 - [x] T008 Delete proven dead/legacy paths and pass missing 0, forbidden 0, unclassified 0.
 
