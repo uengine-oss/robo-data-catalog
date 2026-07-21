@@ -22,7 +22,7 @@ from graph.scope import (
     owner_predicate as _analysis_node_predicate,
     visible_predicate as _visible_node_predicate,
 )
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 
 
 logger = logging.getLogger(__name__)

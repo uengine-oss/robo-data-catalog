@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 
 from graph.database import CatalogGraphDatabase
 from graph.scope import ANALYSIS_GRAPH_OWNER
-from observability import log_catalog_operation
+from shared.observability.logger import log_catalog_operation
 
 logger = logging.getLogger(__name__)
 

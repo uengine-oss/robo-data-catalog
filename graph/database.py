@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from neo4j import AsyncGraphDatabase
 
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 from graph.connection import get_request_graph_connection
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="neo4j")

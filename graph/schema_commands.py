@@ -10,8 +10,8 @@ import logging
 from typing import Optional
 
 from fastapi import HTTPException
-from external.embedding import CatalogEmbeddingGateway
-from external.llm import create_metadata_llm_client
+from integrations.embedding import CatalogEmbeddingGateway
+from integrations.llm import create_metadata_llm_client
 from graph.database import CatalogGraphDatabase
 from graph.scope import ANALYSIS_GRAPH_OWNER
 

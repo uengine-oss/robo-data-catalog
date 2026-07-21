@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 
 # .env 파일 로드 (프로젝트 내부 → 상위 디렉토리 순으로 탐색)
-project_root = Path(__file__).resolve().parents[2]
+project_root = Path(__file__).resolve().parents[4]
 _env_path = project_root / ".env"
 if not _env_path.exists():
     _env_path = find_dotenv(usecwd=True)
@@ -41,7 +41,7 @@ def _bounded_float(name: str, default: float, minimum: float, maximum: float) ->
 def _resolve_catalog_base_directory() -> str:
     if os.getenv("DOCKER_COMPOSE_CONTEXT"):
         return os.getenv("DOCKER_COMPOSE_CONTEXT")
-    return str(Path(__file__).resolve().parents[2])
+    return str(Path(__file__).resolve().parents[4])
 
 
 def _load_catalog_cors_origins() -> tuple[str, ...]:

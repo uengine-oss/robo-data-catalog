@@ -2,7 +2,7 @@
 from fastapi import HTTPException, Request
 
 from graph.connection import RequestGraphConnection, set_request_graph_connection
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 
 
 async def apply_neo4j_override(request: Request) -> None:

@@ -18,8 +18,8 @@ from api.schema import router as schema_router
 from api.schema_edit import router as schema_edit_router
 from api.search import router as search_router
 from api.table_samples import router as table_samples_router
-from settings import CATALOG_SETTINGS
-from observability import setup_catalog_logging, get_catalog_logger
+from shared.config.settings import CATALOG_SETTINGS
+from shared.observability.logger import get_catalog_logger, setup_catalog_logging
 
 
 # 로깅 초기화

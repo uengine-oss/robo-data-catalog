@@ -47,8 +47,8 @@ from rapidfuzz import fuzz
 
 from graph.database import CatalogGraphDatabase
 from graph.scope import ANALYSIS_GRAPH_OWNER
-from external.data_fabric import DataFabricQueryGateway
-from observability import log_catalog_operation
+from integrations.data_fabric import DataFabricQueryGateway
+from shared.observability.logger import log_catalog_operation
 
 logger = logging.getLogger(__name__)
 

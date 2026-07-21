@@ -23,13 +23,13 @@ from rapidfuzz import fuzz, process
 
 from graph.database import CatalogGraphDatabase
 from graph.scope import ANALYSIS_GRAPH_OWNER
-from external.data_fabric import DataFabricQueryGateway
-from observability import log_catalog_operation
+from integrations.data_fabric import DataFabricQueryGateway
+from shared.observability.logger import log_catalog_operation
 
 logger = logging.getLogger(__name__)
 
 
-from table_samples.resolver import resolve_name
+from samples.resolver import resolve_name
 
 
 class TableSampleContextBuilder:

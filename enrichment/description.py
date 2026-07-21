@@ -16,10 +16,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from openai import AsyncOpenAI
 
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 from graph.database import CatalogGraphDatabase
 from graph.scope import ANALYSIS_GRAPH_OWNER
-from observability import log_catalog_operation
+from shared.observability.logger import log_catalog_operation
 
 logger = logging.getLogger(__name__)
 

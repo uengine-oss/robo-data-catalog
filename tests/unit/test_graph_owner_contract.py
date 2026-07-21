@@ -12,7 +12,7 @@ from lineage import sql_extract as sql_lineage_extraction
 from enrichment import foreign_keys as foreign_key_inference
 from enrichment import description as table_description_enrichment
 from search import semantic as metadata_semantic_search
-from table_samples import context as table_sample_context
+from samples import context as table_sample_context
 
 
 class _RecordingClient:

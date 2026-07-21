@@ -2,7 +2,7 @@
 from typing import List, Optional
 from openai import AsyncOpenAI
 
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 
 
 class CatalogEmbeddingGateway:

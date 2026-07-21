@@ -11,8 +11,8 @@ import aiohttp
 from enrichment.description import TableDescriptionEnricher
 from enrichment.events import ndjson as _ndjson
 from enrichment.foreign_keys import ForeignKeyInference
-from external.data_fabric import DataFabricQueryGateway
-from external.llm import create_metadata_llm_client
+from integrations.data_fabric import DataFabricQueryGateway
+from integrations.llm import create_metadata_llm_client
 from graph import schema_queries as schema_metadata_queries
 from graph.database import CatalogGraphDatabase
 

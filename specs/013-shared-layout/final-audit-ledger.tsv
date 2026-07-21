@@ -1,0 +1,8 @@
+path	owner	status
+shared/config/settings.py	shared configuration	verified
+shared/observability/logger.py	shared observability	verified
+samples/context.py	table sample domain	verified
+samples/resolver.py	table sample domain	verified
+settings.py	retired	absent
+observability.py	retired	absent
+table_samples/	retired	absent

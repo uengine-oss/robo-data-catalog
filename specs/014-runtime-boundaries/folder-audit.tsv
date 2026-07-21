@@ -1,0 +1,14 @@
+path	role	decision
+api	public HTTP boundary	keep
+contracts	public request and response schemas	keep
+enrichment	description and foreign-key enrichment	keep
+graph	Neo4j graph access scope and schema operations	keep
+integrations	Data Fabric embedding and LLM outbound adapters	rename from ambiguous root
+lineage	lineage queries and SQL extraction	keep
+samples	table sample context and name resolution	keep
+search	semantic schema search	keep
+shared	cross-domain infrastructure	keep
+shared/config	cross-domain process configuration	keep
+shared/observability	cross-domain logging	keep
+scripts	operator SQL assets	keep
+tests	runtime-owner verification	keep

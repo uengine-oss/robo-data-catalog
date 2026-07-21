@@ -9,7 +9,7 @@ from api.errors import error_body as _error_body
 from api.graph_connection import apply_neo4j_override
 from graph import deletes as graph_deletes
 from graph import queries as analysis_graph_queries
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 
 router = APIRouter(
     prefix=CATALOG_SETTINGS.api_prefix,

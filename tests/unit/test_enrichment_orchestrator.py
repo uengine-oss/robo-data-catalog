@@ -2,7 +2,7 @@ import json
 import unittest
 
 from enrichment.orchestrator import _EnrichmentProgress, _description_events
-from external.data_fabric import DataFabricUnavailableError
+from integrations.data_fabric import DataFabricUnavailableError
 
 
 class _FailingGateway:

@@ -7,7 +7,7 @@ import shutil
 from graph.database import CatalogGraphDatabase
 from graph.scope import owner_predicate as _analysis_node_predicate
 from graph.queries import _validated_data_dir
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 
 logger = logging.getLogger(__name__)
 

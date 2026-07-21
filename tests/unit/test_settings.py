@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from settings import CatalogGraphDatabaseSettings, _bounded_int, _strict_bool
+from shared.config.settings import CatalogGraphDatabaseSettings, _bounded_int, _strict_bool
 
 
 class CatalogSettingsTest(unittest.TestCase):

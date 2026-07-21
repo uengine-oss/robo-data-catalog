@@ -1,6 +1,6 @@
 import unittest
 
-from external.data_fabric import (
+from integrations.data_fabric import (
     DataFabricQueryError,
     DataFabricQueryGateway,
     DataFabricUnavailableError,

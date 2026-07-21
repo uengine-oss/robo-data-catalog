@@ -2,7 +2,7 @@
 
 from openai import AsyncOpenAI
 
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 
 
 def create_metadata_llm_client(api_key: str) -> AsyncOpenAI:

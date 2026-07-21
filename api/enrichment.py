@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from api.graph_connection import apply_neo4j_override
 from contracts import MetadataEnrichmentRequest
 from enrichment.orchestrator import enrichment_events
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 
 router = APIRouter(
     prefix=CATALOG_SETTINGS.api_prefix,

@@ -1,7 +1,7 @@
 """ROBO Data Catalog 운영 로그 구성과 구조화 작업 로그.
 
 사용법:
-    from observability import setup_catalog_logging
+    from shared.observability.logger import setup_catalog_logging
 """
 
 import logging
@@ -139,5 +139,4 @@ def log_catalog_operation(
         real_exc_info = None
 
     logging.log(level, f"[{domain_text}:{stage_text}] {message}", exc_info=real_exc_info)
-
 

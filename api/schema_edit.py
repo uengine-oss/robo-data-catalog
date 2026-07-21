@@ -15,7 +15,7 @@ from contracts import (
 )
 from graph import schema_commands as schema_metadata_commands
 from search import semantic as metadata_semantic_search
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 
 router = APIRouter(
     prefix=CATALOG_SETTINGS.api_prefix,

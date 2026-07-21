@@ -10,7 +10,7 @@ from api.errors import error_body as _error_body
 from api.graph_connection import apply_neo4j_override
 from contracts import SchemaColumnInfo, SchemaRelationshipInfo, SchemaTableInfo
 from graph import schema_queries as schema_metadata_queries
-from settings import CATALOG_SETTINGS
+from shared.config.settings import CATALOG_SETTINGS
 
 router = APIRouter(
     prefix=CATALOG_SETTINGS.api_prefix,

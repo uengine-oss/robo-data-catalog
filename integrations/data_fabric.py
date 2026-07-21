@@ -9,8 +9,8 @@ from typing import Any, Dict, List
 
 import aiohttp
 
-from observability import log_catalog_operation
-from settings import CATALOG_SETTINGS
+from shared.observability.logger import log_catalog_operation
+from shared.config.settings import CATALOG_SETTINGS
 
 
 QUERY_ENDPOINT = "/api/query"
