@@ -320,22 +320,23 @@ async def fetch_related_tables(table_name: str) -> dict:
     """
     client = CatalogGraphDatabase()
     try:
-        # FK_TO_TABLE 관계 조회
+        # Catalog-native FK_TO_TABLE and Analyzer-native FK are the same
+        # table-level concept with different property naming conventions.
         fk_query = {
             "query": f"""
-                MATCH (__cy_t1__:TABLE)-[__cy_r__:FK_TO_TABLE]->(__cy_t2__:TABLE)
+                MATCH (__cy_t1__:TABLE)-[__cy_r__:FK_TO_TABLE|FK]->(__cy_t2__:TABLE)
                 WHERE __cy_t1__.graph_owner = $graph_owner
                   AND __cy_t2__.graph_owner = $graph_owner
                   AND (__cy_t1__.name = $table_name OR __cy_t2__.name = $table_name
                     OR __cy_t1__.id ENDS WITH $table_name OR __cy_t2__.id ENDS WITH $table_name)
                 RETURN __cy_t1__.name AS from_table, 
-                       __cy_t1__.schema_name AS from_schema,
+                       COALESCE(__cy_t1__.schema_name, __cy_t1__.schema) AS from_schema,
                        __cy_t1__.description AS from_desc,
                        __cy_t2__.name AS to_table, 
-                       __cy_t2__.schema_name AS to_schema,
+                       COALESCE(__cy_t2__.schema_name, __cy_t2__.schema) AS to_schema,
                        __cy_t2__.description AS to_desc,
-                       __cy_r__.sourceColumn AS source_column,
-                       __cy_r__.targetColumn AS target_column,
+                       COALESCE(__cy_r__.sourceColumn, __cy_r__.from_column) AS source_column,
+                       COALESCE(__cy_r__.targetColumn, __cy_r__.to_column) AS target_column,
                        COALESCE(__cy_r__.source, 'ddl') AS source,
                        type(__cy_r__) AS rel_type
             """,

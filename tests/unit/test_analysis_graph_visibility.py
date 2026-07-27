@@ -135,6 +135,9 @@ async def test_related_table_queries_are_analysis_owner_scoped() -> None:
     assert len(clients) == 1 and clients[0].closed
     queries = [call[0]["query"] for call in clients[0].calls]
     assert len(queries) == 2
+    assert "FK_TO_TABLE|FK" in queries[0]
+    assert "sourceColumn, __cy_r__.from_column" in queries[0]
+    assert "targetColumn, __cy_r__.to_column" in queries[0]
     for call, query in zip(clients[0].calls, queries):
         assert "graph_owner" in query
         assert call[0]["parameters"]["graph_owner"] == "analyzer"

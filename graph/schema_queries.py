@@ -7,12 +7,71 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 
 from graph.database import CatalogGraphDatabase
 from graph.scope import ANALYSIS_GRAPH_OWNER
 
 logger = logging.getLogger(__name__)
+
+_REFERENCE_TEXT_FIELD = "_reference_text"
+_REFERENCE_START_LINE_FIELD = "_reference_start_line"
+_REFERENCE_CONTEXT_LINES = 8
+
+
+def _filter_column_reference_records(
+    records: list[dict],
+    column_name: Optional[str],
+) -> list[dict]:
+    """Return only references whose local evidence names the requested column.
+
+    READS/WRITES currently terminate at TABLE nodes, so a column reference cannot
+    be inferred from the relationship alone.  The relation's evidence line and
+    the source text are the narrowest authoritative evidence available.  Looking
+    only near that line avoids attributing every column used elsewhere in a large
+    function to the current table access.
+    """
+    requested = (column_name or "").strip()
+    token_pattern = (
+        re.compile(
+            rf"(?<![A-Za-z0-9_]){re.escape(requested)}(?![A-Za-z0-9_])",
+            re.IGNORECASE,
+        )
+        if requested
+        else None
+    )
+    filtered: list[dict] = []
+
+    for record in records:
+        public_record = {
+            key: value
+            for key, value in record.items()
+            if key not in {_REFERENCE_TEXT_FIELD, _REFERENCE_START_LINE_FIELD}
+        }
+        if token_pattern is None:
+            filtered.append(public_record)
+            continue
+
+        text = record.get(_REFERENCE_TEXT_FIELD)
+        evidence_line = record.get("evidence_line")
+        start_line = record.get(_REFERENCE_START_LINE_FIELD)
+        if not isinstance(text, str) or not text.strip():
+            continue
+        try:
+            evidence_index = int(evidence_line) - int(start_line)
+        except (TypeError, ValueError):
+            continue
+
+        lines = text.splitlines()
+        if not 0 <= evidence_index < len(lines):
+            continue
+        lower = max(0, evidence_index - _REFERENCE_CONTEXT_LINES)
+        upper = min(len(lines), evidence_index + _REFERENCE_CONTEXT_LINES + 1)
+        if token_pattern.search("\n".join(lines[lower:upper])):
+            filtered.append(public_record)
+
+    return filtered
 
 
 # =============================================================================
@@ -191,7 +250,9 @@ async def fetch_table_references(
                     s.start_line     AS evidence_line,
                     p.file_name      AS file_name,
                     p.file_directory AS file_directory,
-                    p.file_path      AS file_path
+                    p.file_path      AS file_path,
+                    COALESCE(s.code_text, s.text, '') AS _reference_text,
+                    s.start_line     AS _reference_start_line
                 ORDER BY p.name, s.start_line
             """,
             "parameters": {"table_name": table_name, "graph_owner": ANALYSIS_GRAPH_OWNER},
@@ -216,7 +277,9 @@ async def fetch_table_references(
                     src.file_name    AS file_name,
                     src.file_path    AS file_path,
                     src.directory    AS file_directory,
-                    m.name           AS module_name
+                    m.name           AS module_name,
+                    COALESCE(src.code_text, src.text, '') AS _reference_text,
+                    src.start_line   AS _reference_start_line
                 ORDER BY source_name
 
                 UNION ALL
@@ -235,15 +298,23 @@ async def fetch_table_references(
                     m.file_name      AS file_name,
                     m.file_path      AS file_path,
                     m.file_directory AS file_directory,
-                    m.name           AS module_name
+                    m.name           AS module_name,
+                    COALESCE(m.code_text, m.text, '') AS _reference_text,
+                    m.start_line     AS _reference_start_line
                 ORDER BY source_name
             """,
             "parameters": {"table_name": table_name, "graph_owner": ANALYSIS_GRAPH_OWNER},
         }
 
         results = await client.execute_queries([proc_query, fw_query])
-        proc_records = results[0] if len(results) > 0 else []
-        fw_records = results[1] if len(results) > 1 else []
+        proc_records = _filter_column_reference_records(
+            results[0] if len(results) > 0 else [],
+            column_name,
+        )
+        fw_records = _filter_column_reference_records(
+            results[1] if len(results) > 1 else [],
+            column_name,
+        )
 
         return {
             "references": proc_records,
