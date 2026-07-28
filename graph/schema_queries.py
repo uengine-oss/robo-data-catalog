@@ -232,7 +232,7 @@ async def fetch_table_references(
         # ── (A) 프로시저 전략 참조 ──
         proc_query = {
             "query": """
-                MATCH (s)-[:FROM|WRITES]->(t:TABLE)
+                MATCH (s)-[r:READS|WRITES]->(t:TABLE)
                 WHERE t.graph_owner = $graph_owner
                   AND s.graph_owner = $graph_owner
                   AND (t.name = $table_name OR t.id ENDS WITH $table_name)
@@ -240,14 +240,22 @@ async def fetch_table_references(
                 OPTIONAL MATCH (p)-[:PARENT_OF*]->(s)
                     WHERE p.graph_owner = $graph_owner
                       AND (p:PROCEDURE OR p:FUNCTION OR p:METHOD OR p:TRIGGER)
+                WITH s, r, p,
+                     CASE
+                       WHEN size(coalesce(r.evidence_lines, [])) > 0
+                       THEN r.evidence_lines
+                       ELSE [s.start_line]
+                     END AS evidence_lines
+                UNWIND evidence_lines AS evidence_line
                 RETURN DISTINCT
                     p.name           AS procedure_name,
                     labels(p)[0]     AS procedure_type,
+                    type(r)          AS access_type,
                     p.start_line     AS start_line,
                     p.end_line       AS end_line,
                     s.type           AS statement_type,
                     s.start_line     AS statement_line,
-                    s.start_line     AS evidence_line,
+                    evidence_line    AS evidence_line,
                     p.file_name      AS file_name,
                     p.file_directory AS file_directory,
                     p.file_path      AS file_path,
@@ -267,13 +275,20 @@ async def fetch_table_references(
                   AND (t.name = $table_name OR t.id ENDS WITH $table_name)
                 OPTIONAL MATCH (m)-[:HAS_MEMBER]->(src)
                 WHERE m.graph_owner = $graph_owner
+                WITH src, r, m,
+                     CASE
+                       WHEN size(coalesce(r.evidence_lines, [])) > 0
+                       THEN r.evidence_lines
+                       ELSE [r.evidence_line]
+                     END AS evidence_lines
+                UNWIND evidence_lines AS evidence_line
                 RETURN DISTINCT
                     COALESCE(src.name, src.id) AS source_name,
                     labels(src)[0]   AS source_type,
                     type(r)          AS access_type,
                     src.start_line   AS start_line,
                     src.end_line     AS end_line,
-                    r.evidence_line  AS evidence_line,
+                    evidence_line    AS evidence_line,
                     src.file_name    AS file_name,
                     src.file_path    AS file_path,
                     src.directory    AS file_directory,
