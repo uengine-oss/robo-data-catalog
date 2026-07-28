@@ -1,8 +1,14 @@
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from shared.config.settings import CatalogGraphDatabaseSettings, _bounded_int, _strict_bool
+from shared.config.settings import (
+    CatalogGraphDatabaseSettings,
+    _bounded_int,
+    _resolve_catalog_base_directory,
+    _strict_bool,
+)
 
 
 class CatalogSettingsTest(unittest.TestCase):
@@ -19,6 +25,11 @@ class CatalogSettingsTest(unittest.TestCase):
     def test_system_database_is_forbidden(self):
         with self.assertRaises(ValueError):
             CatalogGraphDatabaseSettings(database="system")
+
+    def test_default_storage_root_matches_flat_application_layout(self):
+        repository_root = Path(__file__).resolve().parents[2]
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(Path(_resolve_catalog_base_directory()), repository_root)
 
 
 if __name__ == "__main__":
