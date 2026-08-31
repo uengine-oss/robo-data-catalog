@@ -10,10 +10,13 @@ from contracts.schema_edit import (
 )
 from contracts.search import SemanticSearchRequest
 from contracts.table_samples import SampleContextRequest
+from contracts.table_discovery import TableDiscoveryPageResponse
+from contracts.object_resolution import ObjectResolutionRequest, ObjectResolutionResponse
 
 __all__ = [
     "AddRelationshipRequest", "ColumnDescriptionUpdateRequest",
-    "LineageAnalyzeRequest", "MetadataEnrichmentRequest", "SampleContextRequest",
+    "LineageAnalyzeRequest", "MetadataEnrichmentRequest", "ObjectResolutionRequest",
+    "ObjectResolutionResponse", "SampleContextRequest", "TableDiscoveryPageResponse",
     "SchemaColumnInfo", "SchemaRelationshipInfo", "SchemaTableInfo",
     "SemanticSearchRequest", "TableDescriptionUpdateRequest", "VectorizeRequest",
 ]

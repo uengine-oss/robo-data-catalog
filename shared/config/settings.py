@@ -97,11 +97,26 @@ class MetadataEnrichmentSettings:
 
 
 @dataclass(frozen=True)
+class CatalogDiscoverySettings:
+    snapshot_ttl_seconds: int = field(
+        default_factory=lambda: _bounded_int(
+            "CATALOG_DISCOVERY_SNAPSHOT_TTL_SECONDS", 900, 30, 86_400,
+        )
+    )
+    snapshot_capacity: int = field(
+        default_factory=lambda: _bounded_int(
+            "CATALOG_DISCOVERY_SNAPSHOT_CAPACITY", 256, 1, 10_000,
+        )
+    )
+
+
+@dataclass(frozen=True)
 class CatalogSettings:
     graph_database: CatalogGraphDatabaseSettings = field(default_factory=CatalogGraphDatabaseSettings)
     llm: CatalogLlmSettings = field(default_factory=CatalogLlmSettings)
     storage: CatalogStorageSettings = field(default_factory=CatalogStorageSettings)
     metadata_enrichment: MetadataEnrichmentSettings = field(default_factory=MetadataEnrichmentSettings)
+    discovery: CatalogDiscoverySettings = field(default_factory=CatalogDiscoverySettings)
 
     version: str = "2.0.0"
     api_prefix: str = "/robo"

@@ -15,6 +15,7 @@ from shared.config.settings import CATALOG_SETTINGS
 
 QUERY_ENDPOINT = "/api/query"
 STATUS_ENDPOINT = "/api/query/status"
+DATASOURCE_ENDPOINT = "/api/datasources"
 _DATASOURCE_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 
 
@@ -191,3 +192,134 @@ class DataFabricQueryGateway:
                 raise DataFabricQueryError("Data Fabric response row does not match columns")
             normalized.append(dict(zip(columns, row)))
         return normalized
+
+
+class DataFabricDatasourceNotFoundError(DataFabricGatewayError):
+    """The datasource is not registered in Data Fabric (HTTP 404)."""
+
+
+# ── 발견(discovery) REST 프록시 — fabric 의 datasource 브라우징 API 소비 ──
+# (스키마 열거의 원천은 Neo4j 가 아니라 fabric — Neo4j TABLE 은 analyzer 가 쓴
+#  그래프의 되읽기라 미발견 테이블을 모른다. specs/discovery-endpoint 계약.)
+
+
+async def _fabric_get_json(
+    gateway: "DataFabricQueryGateway",
+    session: aiohttp.ClientSession,
+    path: str,
+    label: str,
+) -> Dict[str, Any]:
+    """fabric GET — 404 = 미등록(전용 오류), non-200 = 실패, 200 = JSON."""
+    url = f"{gateway._base_url}{path}"
+    try:
+        async with session.get(
+            url,
+            timeout=aiohttp.ClientTimeout(total=gateway._timeout_request),
+        ) as response:
+            if response.status == 404:
+                raise DataFabricDatasourceNotFoundError(
+                    f"datasource not registered ({label})"
+                )
+            if response.status != 200:
+                raise DataFabricQueryError(
+                    f"Data Fabric {label} returned HTTP {response.status}"
+                )
+            return await response.json()
+    except DataFabricGatewayError:
+        raise
+    except asyncio.TimeoutError as exc:
+        raise DataFabricUnavailableError(f"Data Fabric {label} timed out") from exc
+    except aiohttp.ClientError as exc:
+        raise DataFabricUnavailableError(
+            f"Data Fabric {label} failed ({type(exc).__name__})"
+        ) from exc
+
+
+async def list_datasource_tables(
+    gateway: "DataFabricQueryGateway", session: aiohttp.ClientSession,
+) -> List[str]:
+    """``GET /api/datasources/{ds}/tables`` → 테이블명 목록."""
+    if not gateway.is_configured:
+        raise DataFabricUnavailableError("Data Fabric URL and datasource are required")
+    data = await _fabric_get_json(
+        gateway, session,
+        f"{DATASOURCE_ENDPOINT}/{gateway.datasource}/tables",
+        "table listing",
+    )
+    tables = data.get("tables")
+    if not isinstance(tables, list):
+        raise DataFabricQueryError("Invalid Data Fabric table listing response")
+    names: list[str] = []
+    for table in tables:
+        if not isinstance(table, dict):
+            raise DataFabricQueryError("Invalid Data Fabric table listing entry")
+        name = table.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise DataFabricQueryError("Invalid Data Fabric table listing name")
+        names.append(name.strip())
+    return names
+
+
+async def fetch_datasource_table_schema(
+    gateway: "DataFabricQueryGateway", session: aiohttp.ClientSession, table: str,
+) -> List[Dict[str, Any]]:
+    """``GET /api/datasources/{ds}/tables/{table}/schema`` → 컬럼 메타 목록."""
+    if not gateway.is_configured:
+        raise DataFabricUnavailableError("Data Fabric URL and datasource are required")
+    data = await _fabric_get_json(
+        gateway, session,
+        f"{DATASOURCE_ENDPOINT}/{gateway.datasource}/tables/{table}/schema",
+        "table schema",
+    )
+    columns = data.get("columns")
+    if not isinstance(columns, list):
+        raise DataFabricQueryError("Invalid Data Fabric table schema response")
+    return columns
+
+
+async def resolve_datasource_objects(
+    gateway: "DataFabricQueryGateway",
+    session: aiohttp.ClientSession,
+    references: list[dict[str, Any]],
+    *,
+    sample_limit: int,
+    concurrency: int,
+) -> Dict[str, Any]:
+    """Single Fabric batch request for exact metadata and confirmed-only samples."""
+    if not gateway.is_configured:
+        raise DataFabricUnavailableError("Data Fabric URL and datasource are required")
+    url = (
+        f"{gateway._base_url}{DATASOURCE_ENDPOINT}/{gateway.datasource}"
+        "/object-resolution-context"
+    )
+    try:
+        async with session.post(
+            url,
+            json={
+                "references": references,
+                "sample_limit": sample_limit,
+                "concurrency": concurrency,
+            },
+            timeout=aiohttp.ClientTimeout(total=gateway._timeout_request),
+        ) as response:
+            if response.status == 404:
+                raise DataFabricDatasourceNotFoundError(
+                    "datasource not registered (object resolution)"
+                )
+            if response.status != 200:
+                await response.read()
+                raise DataFabricQueryError(
+                    f"Data Fabric object resolution returned HTTP {response.status}"
+                )
+            payload = await response.json()
+            if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+                raise DataFabricQueryError("Invalid Data Fabric object resolution response")
+            return payload
+    except DataFabricGatewayError:
+        raise
+    except asyncio.TimeoutError as exc:
+        raise DataFabricUnavailableError("Data Fabric object resolution timed out") from exc
+    except aiohttp.ClientError as exc:
+        raise DataFabricUnavailableError(
+            f"Data Fabric object resolution failed ({type(exc).__name__})"
+        ) from exc

@@ -1,4 +1,5 @@
 import asyncio
+import pytest
 import tempfile
 import unittest
 from pathlib import Path
@@ -56,6 +57,7 @@ class _RecordingCatalogGraphDatabase:
         self.closed = True
 
 
+@pytest.mark.asyncio
 async def test_all_user_graph_queries_apply_the_system_boundary() -> None:
     clients: list[_RecordingCatalogGraphDatabase] = []
 
@@ -88,6 +90,7 @@ async def test_all_user_graph_queries_apply_the_system_boundary() -> None:
         assert f"NOT {alias}:EMBED_META" in rel_query
 
 
+@pytest.mark.asyncio
 async def test_check_and_delete_are_analysis_owner_scoped() -> None:
     clients: list[_RecordingCatalogGraphDatabase] = []
 
@@ -116,6 +119,7 @@ async def test_check_and_delete_are_analysis_owner_scoped() -> None:
     assert "DETACH DELETE __cy_n__" in delete_query
 
 
+@pytest.mark.asyncio
 async def test_related_table_queries_are_analysis_owner_scoped() -> None:
     clients: list[_RecordingCatalogGraphDatabase] = []
 
