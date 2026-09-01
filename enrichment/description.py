@@ -18,12 +18,11 @@ from openai import AsyncOpenAI
 
 from shared.config.settings import CATALOG_SETTINGS
 from graph.database import CatalogGraphDatabase
-from graph.scope import ANALYSIS_GRAPH_OWNER
+from graph.scope import ANALYZER_OWNER
 from shared.observability.logger import log_catalog_operation
 
 logger = logging.getLogger(__name__)
 
-DESCRIPTION_SOURCE = "sample_data_inference"
 SAMPLE_DATA_LIMIT = 10  # LLM 프롬프트용 샘플 데이터 최대 행 수
 
 
@@ -200,13 +199,12 @@ JSON만 응답하세요."""
     ) -> int:
         query = """
         MATCH (t:TABLE {name: $table_name})
-        WHERE t.graph_owner = $graph_owner
-          AND coalesce(t.db, t.datasource) = $datasource
+        WHERE t._owner = $owner
+          AND t.datasource = $datasource
           AND (t.schema = $schema_name
                OR ($schema_name = 'public' AND coalesce(t.schema, '') = ''))
           AND (t.description IS NULL OR t.description = '' OR t.description = 'N/A')
-        SET t.description = $description,
-            t.description_source = $source
+        SET t.description = $description
         RETURN count(t) AS updated
         """
         results = await self.client.execute_queries([{
@@ -216,8 +214,7 @@ JSON만 응답하세요."""
                 "table_name": table_name,
                 "schema_name": schema_name,
                 "description": description,
-                "source": DESCRIPTION_SOURCE,
-                "graph_owner": ANALYSIS_GRAPH_OWNER,
+                "owner": ANALYZER_OWNER,
             },
         }])
         return _updated_count(results)
@@ -232,13 +229,12 @@ JSON만 응답하세요."""
         query = """
         MATCH (t:TABLE {name: $table_name})
           -[:HAS_COLUMN]->(c:COLUMN {name: $col_name})
-        WHERE t.graph_owner = $graph_owner AND c.graph_owner = $graph_owner
-          AND coalesce(t.db, t.datasource) = $datasource
+        WHERE t._owner = $owner AND c._owner = $owner
+          AND t.datasource = $datasource
           AND (t.schema = $schema_name
                OR ($schema_name = 'public' AND coalesce(t.schema, '') = ''))
           AND (c.description IS NULL OR c.description = '' OR c.description = 'N/A')
-        SET c.description = $description,
-            c.description_source = $source
+        SET c.description = $description
         RETURN count(c) AS updated
         """
         updated = 0
@@ -251,8 +247,7 @@ JSON만 응답하세요."""
                     "schema_name": schema_name,
                     "col_name": col_name,
                     "description": col_desc,
-                    "source": DESCRIPTION_SOURCE,
-                    "graph_owner": ANALYSIS_GRAPH_OWNER,
+                    "owner": ANALYZER_OWNER,
                 },
             }])
             updated += _updated_count(results)

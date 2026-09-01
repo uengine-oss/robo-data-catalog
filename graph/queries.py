@@ -17,10 +17,8 @@ from typing import Any
 
 from graph.database import CatalogGraphDatabase
 from graph.scope import (
-    ANALYSIS_GRAPH_OWNER,
-    SYSTEM_GRAPH_NODE_LABELS,
+    ANALYZER_OWNER,
     owner_predicate as _analysis_node_predicate,
-    visible_predicate as _visible_node_predicate,
 )
 from shared.config.settings import CATALOG_SETTINGS
 
@@ -137,7 +135,6 @@ async def check_graph_data_exists() -> dict:
     try:
         result = await client.execute_queries([
             f"MATCH (__cy_n__) WHERE {_analysis_node_predicate('__cy_n__')} "
-            f"AND {_visible_node_predicate('__cy_n__')} "
             "RETURN count(__cy_n__) as count"
         ])
         node_count = result[0][0]["count"] if result and result[0] else 0
@@ -164,7 +161,7 @@ async def fetch_graph_data() -> dict:
         # 사용자 그래프 노드 조회 — 검색/분석 시스템 노드는 API 경계에서 제외.
         node_query = f"""
             MATCH (__cy_n__)
-            WHERE {_analysis_node_predicate('__cy_n__')} AND {_visible_node_predicate('__cy_n__')}
+            WHERE {_analysis_node_predicate('__cy_n__')}
             RETURN elementId(__cy_n__) AS nodeId, labels(__cy_n__) AS labels, __cy_n__{{.*{null_projection_suffix}}} AS props
         """
         
@@ -172,7 +169,6 @@ async def fetch_graph_data() -> dict:
         rel_query = f"""
             MATCH (__cy_a__)-[__cy_r__]->(__cy_b__)
             WHERE {_analysis_node_predicate('__cy_a__')} AND {_analysis_node_predicate('__cy_b__')}
-              AND {_visible_node_predicate('__cy_a__')} AND {_visible_node_predicate('__cy_b__')}
             RETURN elementId(__cy_r__) AS relId, 
                    elementId(__cy_a__) AS startId, 
                    elementId(__cy_b__) AS endId, 
@@ -227,7 +223,6 @@ async def fetch_graph_data() -> dict:
 def _related_tables_payload(
     table_name: str,
     fk_records: list[dict[str, Any]],
-    procedure_records: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Assemble the related-table response without database side effects."""
     tables: list[dict[str, Any]] = []
@@ -267,7 +262,7 @@ def _related_tables_payload(
             )
 
     for (from_table, to_table), grouped in fk_pairs.items():
-        relation_key = (str(from_table), str(to_table), "FK_TO_TABLE")
+        relation_key = (str(from_table), str(to_table), "FK")
         if relation_key in seen_relationships:
             continue
         seen_relationships.add(relation_key)
@@ -275,32 +270,11 @@ def _related_tables_payload(
             {
                 "from_table": from_table,
                 "to_table": to_table,
-                "type": "FK_TO_TABLE",
+                "type": "FK",
                 "source": grouped["source"],
                 "column_pairs": grouped["column_pairs"],
             }
         )
-
-    for record in procedure_records:
-        base_table = record.get("base_table")
-        for item in record.get("proc_related") or []:
-            related_name = item.get("name")
-            if not related_name:
-                continue
-            add_table(related_name, item.get("schema"), item.get("description"))
-            relation_key = (str(base_table), related_name, "CO_REFERENCED")
-            if relation_key in seen_relationships:
-                continue
-            seen_relationships.add(relation_key)
-            relationships.append(
-                {
-                    "from_table": base_table,
-                    "to_table": related_name,
-                    "type": "CO_REFERENCED",
-                    "source": "procedure",
-                    "column_pairs": [],
-                }
-            )
 
     return {
         "base_table": table_name,
@@ -310,7 +284,7 @@ def _related_tables_payload(
 
 
 async def fetch_related_tables(table_name: str) -> dict:
-    """특정 테이블과 연결된 모든 테이블 조회 (FK_TO_TABLE 관계 포함)
+    """특정 테이블과 FK로 연결된 테이블을 조회한다.
     
     Args:
         table_name: 기준 테이블명
@@ -320,68 +294,34 @@ async def fetch_related_tables(table_name: str) -> dict:
     """
     client = CatalogGraphDatabase()
     try:
-        # Catalog-native FK_TO_TABLE and Analyzer-native FK are the same
-        # table-level concept with different property naming conventions.
+        # Analyzer와 Catalog가 소유권을 나눠 같은 FK 계약을 사용한다.
         fk_query = {
             "query": f"""
-                MATCH (__cy_t1__:TABLE)-[__cy_r__:FK_TO_TABLE|FK]->(__cy_t2__:TABLE)
-                WHERE __cy_t1__.graph_owner = $graph_owner
-                  AND __cy_t2__.graph_owner = $graph_owner
+                MATCH (__cy_t1__:TABLE)-[__cy_r__:FK]->(__cy_t2__:TABLE)
+                WHERE __cy_t1__._owner = $owner
+                  AND __cy_t2__._owner = $owner
                   AND (__cy_t1__.name = $table_name OR __cy_t2__.name = $table_name
-                    OR __cy_t1__.id ENDS WITH $table_name OR __cy_t2__.id ENDS WITH $table_name)
+                    OR __cy_t1__._id ENDS WITH $table_name OR __cy_t2__._id ENDS WITH $table_name)
                 RETURN __cy_t1__.name AS from_table, 
                        COALESCE(__cy_t1__.schema_name, __cy_t1__.schema) AS from_schema,
                        __cy_t1__.description AS from_desc,
                        __cy_t2__.name AS to_table, 
                        COALESCE(__cy_t2__.schema_name, __cy_t2__.schema) AS to_schema,
                        __cy_t2__.description AS to_desc,
-                       COALESCE(__cy_r__.sourceColumn, __cy_r__.from_column) AS source_column,
-                       COALESCE(__cy_r__.targetColumn, __cy_r__.to_column) AS target_column,
-                       COALESCE(__cy_r__.source, 'ddl') AS source,
+                       __cy_r__.from_column AS source_column,
+                       __cy_r__.to_column AS target_column,
+                       __cy_r__._owner AS source,
                        type(__cy_r__) AS rel_type
             """,
             "parameters": {
                 "table_name": table_name,
-                "graph_owner": ANALYSIS_GRAPH_OWNER,
-            }
-        }
-        
-        # 같은 프로시저에서 참조되는 테이블 (CO_REFERENCED)
-        proc_query = {
-            "query": f"""
-                MATCH (__cy_t__:TABLE)
-                WHERE __cy_t__.graph_owner = $graph_owner
-                  AND (__cy_t__.name = $table_name OR __cy_t__.id ENDS WITH $table_name)
-                
-                OPTIONAL MATCH __cy_p1__ = (__cy_t__)<-[:FROM|WRITES]-(__cy_s1__)<-[:PARENT_OF*]-(__cy_proc__)
-                WHERE ALL(__cy_n__ IN nodes(__cy_p1__) WHERE __cy_n__.graph_owner = $graph_owner)
-                OPTIONAL MATCH __cy_p2__ = (__cy_proc__)-[:PARENT_OF*]->(__cy_s2__)-[:FROM|WRITES]->(__cy_t2__:TABLE)
-                WHERE __cy_t2__ <> __cy_t__
-                  AND ALL(__cy_n__ IN nodes(__cy_p2__) WHERE __cy_n__.graph_owner = $graph_owner)
-                
-                WITH __cy_t__, COLLECT(DISTINCT {{
-                    name: __cy_t2__.name, 
-                    schema: __cy_t2__.schema_name, 
-                    description: __cy_t2__.description
-                }}) AS proc_related
-                
-                RETURN __cy_t__.name AS base_table, 
-                       __cy_t__.schema_name AS base_schema,
-                       proc_related
-            """,
-            "parameters": {
-                "table_name": table_name,
-                "graph_owner": ANALYSIS_GRAPH_OWNER,
+                "owner": ANALYZER_OWNER,
             }
         }
         
         fk_results = await client.execute_queries([fk_query])
-        proc_results = await client.execute_queries([proc_query])
-        
         fk_result = fk_results[0] if fk_results else []
-        proc_result = proc_results[0] if proc_results else []
-        
-        return _related_tables_payload(table_name, fk_result, proc_result)
+        return _related_tables_payload(table_name, fk_result)
     finally:
         await client.close()
 

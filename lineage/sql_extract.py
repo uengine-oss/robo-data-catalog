@@ -9,8 +9,8 @@ ETL 코드에서 데이터 흐름(Source → Target)을 추출하여 Neo4j에 �
 - 기존 Table 노드와 연결하여 리니지 시각화
 
 관계 타입:
-- ETL_READS: ETL 프로시저가 소스 테이블에서 데이터를 읽음
-- ETL_WRITES: ETL 프로시저가 타겟 테이블에 데이터를 씀
+- READS: 프로시저가 소스 테이블에서 데이터를 읽음
+- WRITES: 프로시저가 타겟 테이블에 데이터를 씀
 - DATA_FLOWS_TO: 소스 테이블에서 타겟 테이블로 데이터가 흐름
 """
 
@@ -20,7 +20,7 @@ from typing import Optional
 from dataclasses import dataclass, field
 
 from graph.database import CatalogGraphDatabase
-from graph.scope import ANALYSIS_GRAPH_OWNER
+from graph.scope import ANALYZER_OWNER, CATALOG_OWNER
 from shared.observability.logger import log_catalog_operation
 
 logger = logging.getLogger(__name__)
@@ -38,43 +38,28 @@ class LineageInfo:
     is_etl: bool = False  # ETL 패턴으로 감지됨
 
 
-_MARK_ETL_QUERY = """
-MATCH (__cy_proc__)
-WHERE (__cy_proc__:PROCEDURE OR __cy_proc__:FUNCTION)
-  AND __cy_proc__.graph_owner = $graph_owner
-  AND toLower(__cy_proc__.procedure_name) = toLower($proc_name)
-SET __cy_proc__.is_etl = true,
-    __cy_proc__.etl_operation = $operation_type,
-    __cy_proc__.etl_source_count = $source_count,
-    __cy_proc__.etl_target_count = $target_count
-RETURN __cy_proc__
-"""
-
 _LINK_ETL_TABLE_QUERY = """
 MATCH (__cy_proc__)
 WHERE (__cy_proc__:PROCEDURE OR __cy_proc__:FUNCTION)
-  AND __cy_proc__.graph_owner = $graph_owner
-  AND toLower(__cy_proc__.procedure_name) = toLower($proc_name)
+  AND __cy_proc__._owner = $analyzer_owner
+  AND toLower(__cy_proc__.name) = toLower($proc_name)
 MATCH (__cy_t__:TABLE)
-WHERE __cy_t__.graph_owner = $graph_owner
+WHERE __cy_t__._owner = $analyzer_owner
   AND toLower(__cy_t__.name) = toLower($table_name)
-MERGE (__cy_proc__)-[__cy_r__:%s]->(__cy_t__)
-SET __cy_r__.operation = $operation_type,
-    __cy_r__.file_name = $file_name
+MERGE (__cy_proc__)-[__cy_r__:%s {_owner: $catalog_owner}]->(__cy_t__)
+SET __cy_r__.operations = [$operation_type]
 RETURN __cy_proc__, __cy_r__, __cy_t__
 """
 
 _DATA_FLOW_QUERY = """
 MATCH (__cy_src__:TABLE)
-WHERE __cy_src__.graph_owner = $graph_owner
+WHERE __cy_src__._owner = $analyzer_owner
   AND toLower(__cy_src__.name) = toLower($src_name)
 MATCH (__cy_tgt__:TABLE)
-WHERE __cy_tgt__.graph_owner = $graph_owner
+WHERE __cy_tgt__._owner = $analyzer_owner
   AND toLower(__cy_tgt__.name) = toLower($tgt_name)
-MERGE (__cy_src__)-[__cy_r__:DATA_FLOWS_TO]->(__cy_tgt__)
-SET __cy_r__.via_etl = $etl_name,
-    __cy_r__.operation = $operation_type,
-    __cy_r__.file_name = $file_name
+MERGE (__cy_src__)-[__cy_r__:DATA_FLOWS_TO {_owner: $catalog_owner, via: $etl_name}]->(__cy_tgt__)
+SET __cy_r__.description = $operation_type
 RETURN __cy_src__, __cy_r__, __cy_tgt__
 """
 
@@ -296,7 +281,7 @@ class SqlLineageExtractor:
         Returns:
             저장 결과 (노드/관계 수)
         """
-        queries, _planned_stats = self._build_persistence_plan(
+        queries, planned_stats = self._build_persistence_plan(
             lineage_list, file_name=file_name, name_case=name_case
         )
 
@@ -307,22 +292,12 @@ class SqlLineageExtractor:
                 raise RuntimeError(
                     "Lineage persistence result count does not match query count"
                 )
-            for query, result_rows in zip(queries, results):
-                query_text = query["query"]
-                if query_text == _MARK_ETL_QUERY:
-                    counter = "etl_nodes"
-                elif "ETL_READS" in query_text:
-                    counter = "etl_reads"
-                elif "ETL_WRITES" in query_text:
-                    counter = "etl_writes"
-                else:
-                    counter = "data_flows"
-                stats[counter] += len(result_rows)
+            stats = planned_stats
             log_catalog_operation(
                 "LINEAGE", "SAVE",
                 f"Neo4j 저장 완료: ETL {stats['etl_nodes']}개, "
-                f"ETL_READS {stats['etl_reads']}개, "
-                f"ETL_WRITES {stats['etl_writes']}개, "
+                f"READS {stats['etl_reads']}개, "
+                f"WRITES {stats['etl_writes']}개, "
                 f"DATA_FLOWS_TO {stats['data_flows']}개"
             )
 
@@ -350,18 +325,9 @@ class SqlLineageExtractor:
                 "proc_name": proc_name,
                 "operation_type": lineage.operation_type,
                 "file_name": file_name,
-                "graph_owner": ANALYSIS_GRAPH_OWNER,
+                "analyzer_owner": ANALYZER_OWNER,
+                "catalog_owner": CATALOG_OWNER,
             }
-            queries.append(
-                {
-                    "query": _MARK_ETL_QUERY,
-                    "parameters": {
-                        **common,
-                        "source_count": len(lineage.source_tables),
-                        "target_count": len(lineage.target_tables),
-                    },
-                }
-            )
             stats["etl_nodes"] += 1
 
             source_names = [
@@ -373,8 +339,8 @@ class SqlLineageExtractor:
                 for target in lineage.target_tables
             ]
             for relation, table_names, counter in (
-                ("ETL_READS", source_names, "etl_reads"),
-                ("ETL_WRITES", target_names, "etl_writes"),
+                ("READS", source_names, "etl_reads"),
+                ("WRITES", target_names, "etl_writes"),
             ):
                 for table_name in table_names:
                     queries.append(
@@ -396,7 +362,8 @@ class SqlLineageExtractor:
                                 "etl_name": proc_name,
                                 "operation_type": lineage.operation_type,
                                 "file_name": file_name,
-                                "graph_owner": ANALYSIS_GRAPH_OWNER,
+                                "analyzer_owner": ANALYZER_OWNER,
+                                "catalog_owner": CATALOG_OWNER,
                             },
                         }
                     )

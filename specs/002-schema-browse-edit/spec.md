@@ -75,7 +75,7 @@ robo-data-catalog는 robo-data-analyzer가 코드/DDL을 분석해 Neo4j에 적�
 
 - **FR-001**: System MUST `GET /robo/schema/tables`로 테이블 목록을 반환하며, `search`(이름·설명 부분일치), `schema`(정확일치), `limit`(기본 100) 필터를 지원해야 한다. 각 항목은 name·schema·datasource·description·description_source·analyzed_description·column_count를 포함한다.
 - **FR-002**: System MUST `GET /robo/schema/tables/{name}/columns`로 컬럼 목록(name·dtype·nullable·description·description_source·analyzed_description)을 반환하고, `schema` 미지정 또는 `public`이면 이름·fqn 기준으로만 매칭해야 한다.
-- **FR-003**: System MUST `GET /robo/schema/tables/{name}/references`로 해당 테이블/컬럼을 참조하는 프로시저 참조와 프레임워크 참조(`{references, framework_references}`)를 반환해야 하며, `schema` 파라미터가 없으면 400을 반환해야 한다.
+- **FR-003**: System MUST `GET /robo/schema/tables/{name}/references`로 해당 테이블/컬럼을 참조하는 모든 코드 참조(`{references}`)를 반환해야 하며, `schema` 파라미터가 없으면 400을 반환해야 한다.
 - **FR-004**: System MUST `GET /robo/schema/procedures/{name}/statements`로 프로시저 하위 Statement(라인 범위·타입·summary·`ai_description`)를 라인 순으로 반환해야 한다.
 - **FR-005**: System MUST `GET /robo/schema/relationships`로 테이블 간 관계 목록을 반환해야 하며, 대상 관계 타입은 `FK_TO_TABLE`·`ONE_TO_ONE`·`ONE_TO_MANY`·`MANY_TO_ONE`·`MANY_TO_MANY`이고 from/to 테이블·스키마·컬럼·타입·설명을 포함한다.
 - **FR-006**: Users MUST be able to `POST /robo/schema/relationships`로 두 기존 테이블 간 관계를 추가할 수 있어야 하며(MERGE, `source='user'` 기록), 테이블이 없으면 404를 반환해야 한다.

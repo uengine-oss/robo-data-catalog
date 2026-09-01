@@ -10,19 +10,17 @@ class SchemaTableInfo(BaseModel):
     datasource: Optional[str] = ""
     logical_name: Optional[str] = ""  # 짧은 도메인 표시명 (물리명과 별개, analyzer spec 025)
     description: str
-    description_source: Optional[str] = ""
-    analyzed_description: Optional[str] = ""
+    summary: Optional[str] = ""
     column_count: int
 
 
 class SchemaColumnInfo(BaseModel):
     name: str
     table_name: str
-    dtype: str
+    data_type: str
     nullable: bool
     description: str
-    description_source: Optional[str] = ""
-    analyzed_description: Optional[str] = ""
+    summary: Optional[str] = ""
 
 
 class SchemaRelationshipInfo(BaseModel):

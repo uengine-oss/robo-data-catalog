@@ -10,7 +10,7 @@
 import logging
 
 from graph.database import CatalogGraphDatabase
-from graph.scope import ANALYSIS_GRAPH_OWNER
+from graph.scope import ANALYZER_OWNER
 from lineage.sql_extract import analyze_lineage_from_sql as _analyze_lineage
 
 
@@ -31,13 +31,13 @@ async def fetch_lineage_graph() -> dict:
     try:
         query = f"""
             MATCH (__cy_f__)-[__cy_r__:READS|WRITES]->(__cy_t__:TABLE)
-            WHERE __cy_f__.graph_owner = '{ANALYSIS_GRAPH_OWNER}'
-              AND __cy_t__.graph_owner = '{ANALYSIS_GRAPH_OWNER}'
+            WHERE __cy_f__._owner = '{ANALYZER_OWNER}'
+              AND __cy_t__._owner = '{ANALYZER_OWNER}'
             RETURN elementId(__cy_f__) AS fid,
-                   coalesce(__cy_f__.logical_name, __cy_f__.name, __cy_f__.id) AS fname,
+                   coalesce(__cy_f__.logical_name, __cy_f__.name, __cy_f__._id) AS fname,
                    type(__cy_r__) AS rel,
                    elementId(__cy_t__) AS tid,
-                   coalesce(__cy_t__.logical_name, __cy_t__.name, __cy_t__.id) AS tname
+                   coalesce(__cy_t__.logical_name, __cy_t__.name, __cy_t__._id) AS tname
         """
         rows = (await client.execute_queries([query]))[0]
 
@@ -109,4 +109,3 @@ async def analyze_sql_lineage(
         "lineages": lineages,
         "stats": stats
     }
-

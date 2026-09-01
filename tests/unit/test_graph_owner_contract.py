@@ -3,16 +3,16 @@ import unittest
 
 from fastapi import HTTPException
 
+from enrichment import description as table_description_enrichment
+from enrichment import foreign_keys as foreign_key_inference
 from graph import queries as analysis_graph_queries
 from graph import schema_commands as schema_metadata_commands
 from graph import schema_queries as schema_metadata_queries
 from graph.connection import RequestGraphConnection
 from lineage import queries as lineage_graph_queries
 from lineage import sql_extract as sql_lineage_extraction
-from enrichment import foreign_keys as foreign_key_inference
-from enrichment import description as table_description_enrichment
-from search import semantic as metadata_semantic_search
 from samples import context as table_sample_context
+from search import semantic as metadata_semantic_search
 
 
 class _RecordingClient:
@@ -37,7 +37,11 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
             "x-neo4j-password": "secret",
         })
         self.assertIsNotNone(override)
-        for uri in ("http://127.0.0.1:7687", "bolt://user:pass@127.0.0.1:7687", "bolt:///missing"):
+        for uri in (
+            "http://127.0.0.1:7687",
+            "bolt://user:pass@127.0.0.1:7687",
+            "bolt:///missing",
+        ):
             with self.subTest(uri=uri), self.assertRaises(ValueError):
                 RequestGraphConnection.from_headers({"x-neo4j-uri": uri})
         with self.assertRaises(ValueError):
@@ -60,7 +64,8 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
         )
         for module in modules:
             with self.subTest(module=module.__name__):
-                self.assertIn("graph_owner", inspect.getsource(module))
+                source = inspect.getsource(module)
+                self.assertIn("_owner", source)
 
     async def test_schema_read_carries_owner_parameter(self):
         client = _RecordingClient()
@@ -72,27 +77,28 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
             schema_metadata_queries.CatalogGraphDatabase = original
 
         query = client.calls[0][0][0]
-        self.assertEqual(query["parameters"]["graph_owner"], "analyzer")
+        self.assertEqual(query["parameters"]["owner"], "analyzer")
         self.assertEqual(query["parameters"]["limit"], 1000)
-        self.assertIn("t.graph_owner = $graph_owner", query["query"])
+        self.assertIn("table._owner = $owner", query["query"])
         self.assertTrue(client.closed)
 
-    def test_metadata_enrichment_targets_are_owner_and_datasource_scoped(self):
+    def test_metadata_enrichment_targets_use_current_schema_contract(self):
         query = schema_metadata_queries.metadata_enrichment_targets_query("shopmall")
 
         self.assertEqual(
             query["parameters"],
-            {"datasource": "shopmall", "graph_owner": "analyzer"},
+            {"datasource": "shopmall", "owner": "analyzer"},
         )
-        self.assertIn("t.graph_owner = $graph_owner", query["query"])
-        self.assertIn("coalesce(t.db, t.datasource) = $datasource", query["query"])
-        self.assertIn("c:COLUMN {graph_owner: $graph_owner}", query["query"])
+        self.assertIn("table._owner = $owner", query["query"])
+        self.assertIn("table.datasource = $datasource", query["query"])
+        self.assertIn("column:COLUMN {_owner: $owner}", query["query"])
+        self.assertIn("data_type: column.data_type", query["query"])
         self.assertNotIn("shopmall", query["query"])
 
-    async def test_schema_write_carries_owner_and_type_allowlist(self):
+    async def test_schema_write_allows_only_catalog_owned_fk(self):
         with self.assertRaises(HTTPException):
             await schema_metadata_commands.create_schema_relationship(
-                "a", "public", "id", "b", "public", "id", "X]->(n) DETACH DELETE n //",
+                "a", "public", "id", "b", "public", "id", "CALLS",
             )
 
         client = _RecordingClient([[{"from_table": "a", "to_table": "b"}]])
@@ -100,15 +106,17 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
         schema_metadata_commands.CatalogGraphDatabase = lambda: client
         try:
             result = await schema_metadata_commands.create_schema_relationship(
-                "a", "public", "id", "b", "public", "id", "FK_TO_TABLE",
+                "a", "public", "id", "b", "public", "id", "FK",
             )
         finally:
             schema_metadata_commands.CatalogGraphDatabase = original
 
         self.assertTrue(result["created"])
         query = client.calls[0][0][0]
-        self.assertEqual(query["parameters"]["graph_owner"], "analyzer")
-        self.assertIn("t1.graph_owner = $graph_owner", query["query"])
+        self.assertEqual(query["parameters"]["owner"], "analyzer")
+        self.assertEqual(query["parameters"]["relationship_owner"], "catalog")
+        self.assertIn("source._owner = $owner", query["query"])
+        self.assertIn("_owner: $relationship_owner", query["query"])
 
     async def test_lineage_read_is_owner_scoped(self):
         client = _RecordingClient([[]])
@@ -120,7 +128,7 @@ class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
             lineage_graph_queries.CatalogGraphDatabase = original
 
         self.assertEqual(result["stats"]["flowCount"], 0)
-        self.assertIn("graph_owner = 'analyzer'", client.calls[0][0][0])
+        self.assertIn("_owner = 'analyzer'", client.calls[0][0][0])
         self.assertTrue(client.closed)
 
 

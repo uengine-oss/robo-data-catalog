@@ -1,80 +1,40 @@
-"""Column-level schema reference evidence contract."""
+"""Column filtering for published source text."""
 
 import unittest
 
-from graph.schema_queries import _filter_column_reference_records
+from graph.schema_queries import _filter_column_references
 
 
-def _record(
-    text: str,
-    *,
-    evidence_line: int = 108,
-    start_line: int = 100,
-) -> dict:
+def _record(text: str) -> dict:
     return {
         "source_name": "checkout_process",
         "access_type": "WRITES",
-        "evidence_line": evidence_line,
-        "_reference_text": text,
-        "_reference_start_line": start_line,
+        "code_text": text,
     }
 
 
 class ColumnReferenceEvidenceTests(unittest.TestCase):
-    def test_table_reference_keeps_all_records_without_internal_evidence_fields(self):
+    def test_table_reference_is_not_filtered(self):
         records = [_record("SELECT member_id FROM orders")]
+        self.assertIs(_filter_column_references(records, None), records)
 
-        self.assertEqual(
-            _filter_column_reference_records(records, None),
-            [
-                {
-                    "source_name": "checkout_process",
-                    "access_type": "WRITES",
-                    "evidence_line": 108,
-                }
-            ],
-        )
-
-    def test_column_reference_requires_exact_token_near_relation_evidence(self):
-        lines = ["irrelevant"] * 20
-        lines[8] = (
+    def test_column_reference_requires_an_exact_token(self):
+        records = [_record(
             "UPDATE orders SET order_status_cd = :status "
             "WHERE member_id = :member_id"
-        )
-        records = [_record("\n".join(lines))]
+        )]
 
+        self.assertEqual(len(_filter_column_references(records, "member_id")), 1)
+        self.assertEqual(_filter_column_references(records, "member"), [])
+
+    def test_column_can_appear_anywhere_in_published_source(self):
+        source = "SELECT member_id FROM members\n" + ("irrelevant\n" * 40)
+        records = [_record(source)]
+        self.assertEqual(_filter_column_references(records, "member_id"), records)
+
+    def test_missing_source_text_does_not_invent_evidence(self):
         self.assertEqual(
-            len(_filter_column_reference_records(records, "member_id")),
-            1,
-        )
-        self.assertEqual(
-            _filter_column_reference_records(records, "member"),
-            [],
-        )
-
-    def test_column_elsewhere_in_large_function_is_not_attributed_to_relation(self):
-        lines = ["irrelevant"] * 40
-        lines[0] = "SELECT member_id FROM members"
-        lines[28] = "UPDATE orders SET order_status_cd = :status"
-        records = [
-            _record(
-                "\n".join(lines),
-                evidence_line=128,
-                start_line=100,
-            )
-        ]
-
-        self.assertEqual(
-            _filter_column_reference_records(records, "member_id"),
-            [],
-        )
-
-    def test_column_reference_without_line_anchored_evidence_is_not_guessed(self):
-        record = _record("SELECT member_id FROM orders")
-        record["_reference_start_line"] = None
-
-        self.assertEqual(
-            _filter_column_reference_records([record], "member_id"),
+            _filter_column_references([_record("")], "member_id"),
             [],
         )
 

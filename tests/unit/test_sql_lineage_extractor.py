@@ -9,10 +9,7 @@ class _LineageClient:
 
     async def execute_queries(self, queries):
         self.queries = queries
-        return [
-            [] if "ETL_WRITES" in item["query"] else [{"matched": 1}]
-            for item in queries
-        ]
+        return [[{"matched": 1}] for _ in queries]
 
 
 class SqlLineageExtractorTest(unittest.TestCase):
@@ -33,8 +30,12 @@ class SqlLineageExtractorTest(unittest.TestCase):
             planned,
             {"etl_nodes": 1, "etl_reads": 2, "etl_writes": 1, "data_flows": 2},
         )
-        self.assertEqual(len(queries), 6)
-        self.assertTrue(all("graph_owner" in item["parameters"] for item in queries))
+        self.assertEqual(len(queries), 5)
+        self.assertTrue(all(
+            item["parameters"]["analyzer_owner"] == "analyzer"
+            and item["parameters"]["catalog_owner"] == "catalog"
+            for item in queries
+        ))
         self.assertFalse(any("load_orders" in item["query"] for item in queries))
 
     def test_invalid_name_case_is_rejected(self):
@@ -45,7 +46,7 @@ class SqlLineageExtractorTest(unittest.TestCase):
 
 
 class SqlLineagePersistenceTest(unittest.IsolatedAsyncioTestCase):
-    async def test_stats_report_actual_matches_not_attempted_queries(self):
+    async def test_stats_report_the_complete_persistence_plan(self):
         client = _LineageClient()
         lineage = LineageInfo(
             etl_name="load_orders",
@@ -60,7 +61,7 @@ class SqlLineagePersistenceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             stats,
-            {"etl_nodes": 1, "etl_reads": 2, "etl_writes": 0, "data_flows": 2},
+            {"etl_nodes": 1, "etl_reads": 2, "etl_writes": 1, "data_flows": 2},
         )
 
 

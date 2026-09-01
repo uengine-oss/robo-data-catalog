@@ -6,7 +6,6 @@ from contracts.schema_edit import (
     AddRelationshipRequest,
     ColumnDescriptionUpdateRequest,
     TableDescriptionUpdateRequest,
-    VectorizeRequest,
 )
 from contracts.search import SemanticSearchRequest
 from contracts.table_samples import SampleContextRequest
@@ -18,5 +17,5 @@ __all__ = [
     "LineageAnalyzeRequest", "MetadataEnrichmentRequest", "ObjectResolutionRequest",
     "ObjectResolutionResponse", "SampleContextRequest", "TableDiscoveryPageResponse",
     "SchemaColumnInfo", "SchemaRelationshipInfo", "SchemaTableInfo",
-    "SemanticSearchRequest", "TableDescriptionUpdateRequest", "VectorizeRequest",
+    "SemanticSearchRequest", "TableDescriptionUpdateRequest",
 ]

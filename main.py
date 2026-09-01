@@ -1,7 +1,6 @@
-"""ROBO Data Catalog 서비스
+"""ROBO Data Catalog 서비스.
 
-스키마 조회/편집/보강 + 리니지 + DW 관리 서비스.
-분석 그래프를 소비하는 독립 마이크로서비스.
+Analyzer 그래프를 조회하고 스키마 설명, FK, 계보, 샘플 문맥을 보완한다.
 
 시작 방법:
     uvicorn main:app --host 0.0.0.0 --port 5503 --reload
@@ -33,7 +32,7 @@ logger = get_catalog_logger(__name__)
 
 app = FastAPI(
     title="ROBO Data Catalog",
-    description="스키마 조회/편집/보강, 리니지, DW 관리 서비스",
+    description="스키마 조회·설명 보완·FK·계보·샘플 문맥 서비스",
     version=CATALOG_SETTINGS.version,
     docs_url="/docs",
     redoc_url="/redoc",

@@ -22,7 +22,7 @@ import aiohttp
 from rapidfuzz import fuzz, process
 
 from graph.database import CatalogGraphDatabase
-from graph.scope import ANALYSIS_GRAPH_OWNER
+from graph.scope import ANALYZER_OWNER
 from integrations.data_fabric import DataFabricQueryGateway
 from shared.observability.logger import log_catalog_operation
 
@@ -126,11 +126,11 @@ class TableSampleContextBuilder:
         """Neo4j 에 저장된 datasource 의 Table 이름 목록 (schema.name 또는 name)."""
         query = (
             "MATCH (t:TABLE) "
-            "WHERE t.graph_owner = $graph_owner AND coalesce(t.db, t.datasource) = $ds "
+            "WHERE t._owner = $owner AND t.datasource = $ds "
             "RETURN DISTINCT coalesce(t.schema + '.' + t.name, t.name) AS fqn"
         )
         results = await self._neo4j.execute_queries(
-            [query], {"ds": datasource, "graph_owner": ANALYSIS_GRAPH_OWNER}
+            [query], {"ds": datasource, "owner": ANALYZER_OWNER}
         )
         if not (results and results[0]):
             return []
@@ -149,18 +149,18 @@ class TableSampleContextBuilder:
 
         query = (
             "MATCH (t:TABLE)-[:HAS_COLUMN]->(c:COLUMN) "
-            "WHERE t.graph_owner = $graph_owner AND c.graph_owner = $graph_owner "
+            "WHERE t._owner = $owner AND c._owner = $owner "
             "  AND ((t.name = $name AND ($schema = '' OR t.schema = $schema)) "
-            "    OR t.id = $fqn) "
-            "RETURN c.name AS name, c.dtype AS dtype, "
+            "    OR t._id = $fqn) "
+            "RETURN c.name AS name, c.data_type AS data_type, "
             "       c.description AS description, "
-            "       c.is_primary_key AS is_primary_key, "
+            "       c.primary_key AS primary_key, "
             "       c.nullable AS nullable "
             "ORDER BY c.name"
         )
         params = {
             "name": name, "schema": schema, "fqn": table_fqn,
-            "graph_owner": ANALYSIS_GRAPH_OWNER,
+            "owner": ANALYZER_OWNER,
         }
         results = await self._neo4j.execute_queries([query], params)
         if not (results and results[0]):

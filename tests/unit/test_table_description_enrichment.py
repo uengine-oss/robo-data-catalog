@@ -91,10 +91,10 @@ class DescriptionEnrichmentTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(updated, (1, 1))
         queries = [call.args[0][0] for call in client.execute_queries.await_args_list]
         for query in queries:
-            self.assertIn("coalesce(t.db, t.datasource) = $datasource", query["query"])
+            self.assertIn("t.datasource = $datasource", query["query"])
             self.assertEqual(query["params"]["datasource"], "shopmall")
             self.assertIn("$schema_name = 'public'", query["query"])
-            self.assertIn("graph_owner", query["params"])
+            self.assertEqual(query["params"]["owner"], "analyzer")
 
 
 if __name__ == "__main__":

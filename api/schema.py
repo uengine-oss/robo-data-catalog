@@ -35,8 +35,7 @@ async def list_schema_tables(
                 datasource=r.get("datasource") or "",
                 logical_name=r.get("logical_name") or "",
                 description=r["description"] or "",
-                description_source=r.get("description_source") or "",
-                analyzed_description=r.get("analyzed_description") or "",
+                summary=r.get("summary") or "",
                 column_count=r["column_count"] or 0,
             )
             for r in records
@@ -61,11 +60,10 @@ async def get_table_columns(table_name: str, schema: Optional[str] = None):
             SchemaColumnInfo(
                 name=r["name"],
                 table_name=r["table_name"],
-                dtype=r["dtype"] or "",
+                data_type=r["data_type"] or "",
                 nullable=r.get("nullable", True),
                 description=r.get("description") or "",
-                description_source=r.get("description_source") or "",
-                analyzed_description=r.get("analyzed_description") or "",
+                summary=r.get("summary") or "",
             )
             for r in records
         ]
@@ -94,11 +92,11 @@ async def get_table_references(
 
 
 @router.get("/schema/procedures/{procedure_name}/statements")
-async def get_procedure_statements(procedure_name: str, file_directory: Optional[str] = None):
+async def get_procedure_statements(procedure_name: str, file_path: Optional[str] = None):
     """프로시저의 모든 Statement와 AI 설명 조회"""
     logger.info("[API] Statement 조회 | procedure=%s", procedure_name)
     try:
-        records = await schema_metadata_queries.fetch_procedure_statements(procedure_name, file_directory)
+        records = await schema_metadata_queries.fetch_procedure_statements(procedure_name, file_path)
         return {"statements": records}
     except Exception as e:
         logger.error("[API] Statement 조회 실패 | error_type=%s", type(e).__name__)
@@ -119,7 +117,7 @@ async def list_schema_relationships():
                 to_table=r["to_table"],
                 to_schema=r.get("to_schema") or "",
                 to_column=r.get("to_column") or "",
-                relationship_type=r.get("relationship_type") or "FK_TO_TABLE",
+                relationship_type=r.get("relationship_type") or "FK",
                 description=r.get("description") or "",
             )
             for r in records

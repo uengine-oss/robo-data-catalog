@@ -11,9 +11,7 @@ class AddRelationshipRequest(BaseModel):
     to_table: str = Field(min_length=1, max_length=512)
     to_schema: str = Field(default="", max_length=512)
     to_column: str = Field(min_length=1, max_length=512)
-    relationship_type: Literal[
-        "FK_TO_TABLE", "ONE_TO_ONE", "ONE_TO_MANY", "MANY_TO_ONE", "MANY_TO_MANY"
-    ] = "FK_TO_TABLE"
+    relationship_type: Literal["FK"] = "FK"
     description: str = Field(default="", max_length=10_000)
 
 
@@ -29,13 +27,3 @@ class ColumnDescriptionUpdateRequest(BaseModel):
     table_schema: str = "public"
     column_name: str
     description: Optional[str] = None
-
-
-class VectorizeRequest(BaseModel):
-    db_name: Optional[str] = "postgres"
-    table_schema: Optional[str] = Field(alias="schema", default=None)
-    model_config = {"populate_by_name": True}
-    include_tables: bool = True
-    include_columns: bool = True
-    reembed_existing: bool = False
-    batch_size: int = Field(default=100, ge=1, le=1000)
