@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 from neo4j import AsyncGraphDatabase
 
+from client.neo4j_context import get_database
 from config.settings import settings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="neo4j")
@@ -20,8 +21,14 @@ class Neo4jClient:
     __slots__ = ("_driver", "_config", "_database")
 
     def __init__(self, database: Optional[str] = None):
+        """대상 graph 는 셋 중 먼저 있는 것 — 인자 · 요청 헤더 · 설정.
+
+        요청 헤더를 보는 이유는 이 클라이언트를 인자 없이 만드는 자리가 스무 곳이
+        넘어서다. 거기까지 인자를 내리는 대신 요청 컨텍스트에서 집는다. 헤더가
+        없으면 지금까지와 똑같다.
+        """
         self._config = settings.neo4j
-        self._database = database if database is not None else self._config.database
+        self._database = database or get_database() or self._config.database
         self._driver = AsyncGraphDatabase.driver(
             self._config.uri,
             auth=(self._config.user, self._config.password),

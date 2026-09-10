@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api.catalog_router import router
+from client.neo4j_context import DatabaseScopeMiddleware
 from config.settings import settings
 from util.logger import setup_logging, get_logger
 
@@ -43,6 +44,9 @@ app.add_middleware(
 )
 
 # 라우터 등록
+# 요청이 정한 대상 graph 를 컨텍스트에 싣는다 — 라우터보다 바깥이어야 한다.
+app.add_middleware(DatabaseScopeMiddleware)
+
 app.include_router(router)
 
 
