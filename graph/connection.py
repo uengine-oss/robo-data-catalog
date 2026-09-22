@@ -40,16 +40,21 @@ class RequestGraphConnection:
         Starlette ``request.headers`` 는 대소문자 무시 — 소문자 키로 조회한다.
         """
         uri = headers.get("x-neo4j-uri")
+        database = headers.get("x-neo4j-database") or None
+        if database and database.lower() == "system":
+            raise ValueError("Neo4j system database is forbidden")
         if not uri:
-            return None
+            if not database:
+                return None
+            # Bundled Electron sends a DB choice, not its host-only Bolt URI.
+            from shared.config.settings import CATALOG_SETTINGS
+            config = CATALOG_SETTINGS.graph_database
+            return cls(config.uri, config.user, config.password, database)
         parsed = urlsplit(uri)
         if parsed.scheme not in {"bolt", "bolt+s", "bolt+ssc", "neo4j", "neo4j+s", "neo4j+ssc"}:
             raise ValueError("unsupported Neo4j URI scheme")
         if not parsed.hostname or parsed.username or parsed.password or len(uri) > 2048:
             raise ValueError("invalid Neo4j URI")
-        database = headers.get("x-neo4j-database") or None
-        if database and database.lower() == "system":
-            raise ValueError("Neo4j system database is forbidden")
         return cls(
             uri=uri,
             user=headers.get("x-neo4j-user", "neo4j"),

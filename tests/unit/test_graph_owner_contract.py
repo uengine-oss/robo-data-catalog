@@ -30,6 +30,16 @@ class _RecordingClient:
 
 
 class GraphOwnerContractTest(unittest.IsolatedAsyncioTestCase):
+    def test_database_only_uses_container_connection(self):
+        from shared.config.settings import CATALOG_SETTINGS
+
+        override = RequestGraphConnection.from_headers({"x-neo4j-database": "project_analysis"})
+        self.assertIsNotNone(override)
+        self.assertEqual(override.database, "project_analysis")
+        self.assertEqual(override.uri, CATALOG_SETTINGS.graph_database.uri)
+        with self.assertRaises(ValueError):
+            RequestGraphConnection.from_headers({"x-neo4j-database": "system"})
+
     def test_neo4j_override_accepts_only_neo4j_uri_without_embedded_credentials(self):
         override = RequestGraphConnection.from_headers({
             "x-neo4j-uri": "bolt://127.0.0.1:7687",
