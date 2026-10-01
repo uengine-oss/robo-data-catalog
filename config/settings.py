@@ -26,7 +26,9 @@ class Neo4jConfig:
 
 @dataclass(frozen=True)
 class LLMConfig:
-    api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
+    # 상위 .env 를 플랫폼의 다른 서비스와 공유한다 — OpenAI 를 쓰면 표준 이름 OPENAI_API_KEY 로 둔다.
+    # LLM_API_KEY 는 OpenAI 호환(사내 게이트웨이 등)에 따로 줄 때만.
+    api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY", ""))
     model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "gpt-4.1"))
     embedding_model: str = field(default_factory=lambda: os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"))
 
