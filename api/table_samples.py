@@ -57,7 +57,7 @@ async def resolve_table_context(body: ObjectResolutionRequest):
     except ValueError as e:
         raise HTTPException(400, _error_body(e))
     except DataFabricGatewayError as e:
-        logger.error("[API] 객체 신원 해소 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 객체 신원 해소 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(502, _error_body(e))
 
 @router.post("/tables/sample-context")
@@ -96,7 +96,7 @@ async def get_table_sample_context(body: SampleContextRequest):
     except ValueError as e:
         raise HTTPException(400, _error_body(e))
     except Exception as e:
-        logger.error("[API] 샘플 컨텍스트 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 샘플 컨텍스트 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
     finally:
         await neo4j.close()
@@ -148,5 +148,5 @@ async def discover_datasource_tables(
     except ValueError as e:
         raise HTTPException(400, _error_body(e))
     except DataFabricGatewayError as e:
-        logger.error("[API] 테이블 발견 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 테이블 발견 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(502, _error_body(e))

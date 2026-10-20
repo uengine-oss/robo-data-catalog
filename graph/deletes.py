@@ -34,7 +34,7 @@ async def cleanup_all_graph_data(include_files: bool = True) -> None:
         ])
         logging.info("Analyzer 소유 Neo4j 데이터 삭제 완료")
     except Exception as e:
-        logger.error("분석 그래프 삭제 실패 | error_type=%s", type(e).__name__)
+        logger.error("분석 그래프 삭제 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise RuntimeError("분석 그래프 삭제에 실패했습니다") from e
     finally:
         await client.close()

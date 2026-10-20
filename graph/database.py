@@ -79,6 +79,14 @@ class CatalogGraphDatabase:
                     raise
 
         except Exception as e:
+            # ⚠ **원인 문구를 같이 싣는다** (2026-10-20 · done15 §297).
+            # 전에는 종류(`CypherSyntaxError`)만 남기고 **메시지를 버렸다.** 그래서
+            # 화면에는 "Catalog operation failed" 만 뜨고, 로그를 열어도
+            # 무엇이 틀렸는지 알 수 없었다 — 실제로 그날
+            # `invalid input syntax for type bigint: "HR_APPROVAL_HISTORY"` 라는
+            # **한 줄이면 끝날 일**을 질의를 손으로 재현해서야 찾았다.
+            # `from e` 로 원인을 달아도 **로그가 종류만 찍으면 소용이 없다.**
             raise RuntimeError(
-                f"Cypher query execution failed (query_count={len(queries)}, error_type={type(e).__name__})"
+                f"Cypher query execution failed (query_count={len(queries)}, "
+                f"error_type={type(e).__name__}): {str(e)[:400]}"
             ) from e

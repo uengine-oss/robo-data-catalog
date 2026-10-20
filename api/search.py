@@ -33,5 +33,5 @@ async def semantic_search_tables(request: Request, body: SemanticSearchRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("[API] 시멘틱 검색 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 시멘틱 검색 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))

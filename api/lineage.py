@@ -27,7 +27,7 @@ async def get_lineage_graph():
                     len(result["nodes"]), len(result["edges"]))
         return result
     except Exception as e:
-        logger.error("[API] 리니지 조회 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 리니지 조회 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
 
 
@@ -45,5 +45,5 @@ async def analyze_lineage(body: LineageAnalyzeRequest):
         logger.info("[API] 리니지 분석 완료 | lineages=%d", len(result["lineages"]))
         return result
     except Exception as e:
-        logger.error("[API] 리니지 분석 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 리니지 분석 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))

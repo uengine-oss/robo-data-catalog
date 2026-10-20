@@ -100,7 +100,10 @@ async def fetch_table_columns(table_name: str, schema: str = "") -> list:
             "table_name": table_name,
             "owner": ANALYZER_OWNER,
         }
-        name_match = "(table.name = $table_name OR table._id ENDS WITH $table_name)"
+        # ⚠ `_id ENDS WITH` 를 뺐다 (2026-10-20 · done15 §297) — `_id` 는 그래프의
+        # **내부 숫자 id**(bigint)지 이름이 붙은 문자열이 아니다. 문자열로 비교하면
+        # 질의가 `invalid input syntax for type bigint` 로 죽는다. 이름으로만 찾는다.
+        name_match = "table.name = $table_name"
         if schema and schema.lower() != "public":
             where = f"{name_match} AND table.schema = $schema"
             params["schema"] = schema
@@ -143,7 +146,7 @@ async def fetch_table_references(
             "query": """
                 MATCH (source)-[access:READS|WRITES]->(table:TABLE)
                 WHERE source._owner = $owner AND table._owner = $owner
-                  AND (table.name = $table_name OR table._id ENDS WITH $table_name)
+                  AND table.name = $table_name
                 OPTIONAL MATCH (routine)-[:PARENT_OF*0..]->(source)
                 WHERE routine._owner = $owner
                   AND any(label IN labels(routine)

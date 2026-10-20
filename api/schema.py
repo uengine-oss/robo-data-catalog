@@ -43,7 +43,7 @@ async def list_schema_tables(
         logger.info("[API] 테이블 목록 조회 완료 | count=%d", len(tables))
         return tables
     except Exception as e:
-        logger.error("[API] 테이블 목록 조회 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 테이블 목록 조회 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
 
 
@@ -69,7 +69,7 @@ async def get_table_columns(table_name: str, schema: Optional[str] = None):
         ]
         return columns
     except Exception as e:
-        logger.error("[API] 컬럼 조회 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 컬럼 조회 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
 
 
@@ -87,7 +87,7 @@ async def get_table_references(
     try:
         return await schema_metadata_queries.fetch_table_references(table_name, schema, column_name)
     except Exception as e:
-        logger.error("[API] 테이블 참조 조회 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 테이블 참조 조회 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
 
 
@@ -99,7 +99,7 @@ async def get_procedure_statements(procedure_name: str, file_path: Optional[str]
         records = await schema_metadata_queries.fetch_procedure_statements(procedure_name, file_path)
         return {"statements": records}
     except Exception as e:
-        logger.error("[API] Statement 조회 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] Statement 조회 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
 
 
@@ -123,5 +123,5 @@ async def list_schema_relationships():
             for r in records
         ]
     except Exception as e:
-        logger.error("[API] 관계 조회 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 관계 조회 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))

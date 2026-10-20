@@ -295,13 +295,17 @@ async def fetch_related_tables(table_name: str) -> dict:
     client = CatalogGraphDatabase()
     try:
         # Analyzer와 Catalog가 소유권을 나눠 같은 FK 계약을 사용한다.
+        # `_id ENDS WITH $table_name` removed (2026-10-20 / done15 §297): `_id` is the graph's internal numeric id (bigint), not a
+        # name-suffixed string. Comparing it as text kills the query with
+        # `invalid input syntax for type bigint`.
+        # ⚠ Keep this note OUTSIDE the Cypher string - putting it inside
+        #    broke the query again with `unexpected character '#'`.
         fk_query = {
             "query": f"""
                 MATCH (__cy_t1__:TABLE)-[__cy_r__:FK]->(__cy_t2__:TABLE)
                 WHERE __cy_t1__._owner = $owner
                   AND __cy_t2__._owner = $owner
-                  AND (__cy_t1__.name = $table_name OR __cy_t2__.name = $table_name
-                    OR __cy_t1__._id ENDS WITH $table_name OR __cy_t2__._id ENDS WITH $table_name)
+                  AND (__cy_t1__.name = $table_name OR __cy_t2__.name = $table_name)
                 RETURN __cy_t1__.name AS from_table, 
                        COALESCE(__cy_t1__.schema_name, __cy_t1__.schema) AS from_schema,
                        __cy_t1__.description AS from_desc,

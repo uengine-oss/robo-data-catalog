@@ -24,7 +24,7 @@ async def check_existing_data():
     try:
         return await analysis_graph_queries.check_graph_data_exists()
     except Exception as e:
-        logger.error("[API] 데이터 확인 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 데이터 확인 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
 
 
@@ -40,7 +40,7 @@ async def get_graph_data():
         )
         return result
     except Exception as e:
-        logger.error("[API] 그래프 조회 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 그래프 조회 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
 
 
@@ -56,7 +56,7 @@ async def get_related_tables(table_name: str):
         )
         return result
     except Exception as e:
-        logger.error("[API] 관련 테이블 조회 실패 | table=%s | error_type=%s", table_name, type(e).__name__)
+        logger.error("[API] 관련 테이블 조회 실패 | table=%s | error_type=%s | %s", table_name, type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
 
 
@@ -69,5 +69,5 @@ async def delete_user_data(include_files: bool = False):
         logger.info("[API] 데이터 삭제 완료 | include_files=%s", include_files)
         return result
     except Exception as e:
-        logger.error("[API] 데이터 삭제 실패 | error_type=%s", type(e).__name__)
+        logger.error("[API] 데이터 삭제 실패 | error_type=%s | %s", type(e).__name__, str(e)[:300])
         raise HTTPException(500, _error_body(e))
