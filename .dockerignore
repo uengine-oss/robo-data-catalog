@@ -1,0 +1,24 @@
+# 분석기와 같은 이유 — `robo-data-analyzer/.dockerignore` 머리말 참조.
+#
+# 여기서 특히 중요한 것은 `.env` 다. 이 저장소의 `.env` 는 **루트 `.env` 를 가리키는
+# 심볼릭 링크**라, 이미지에 복사되면 가리키는 곳이 없는 링크가 된다. 설정은 compose 의
+# environment 로 들어오므로 이미지에 들어갈 이유도 없다 (헌법 VI: 설정 원천은 루트 `.env`).
+.env
+.env.*
+!.env.example
+
+.venv
+venv
+.git
+.gitignore
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+logs
+*.log
+.pytest_cache
+.ruff_cache
+.mypy_cache
+node_modules
+.DS_Store
