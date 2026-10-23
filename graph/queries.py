@@ -166,13 +166,34 @@ async def fetch_graph_data() -> dict:
         """
         
         # 관계 조회 (전체 관계)
+        #
+        # ⚠ **양끝에 `_owner` 술어를 걸지 않는다** (2026-10-23 · ISS-59).
+        #
+        # 걸면 이 엔진이 병적인 계획을 세운다 — 라벨도 인덱스도 없는
+        # `(a)-[r]->(b)` 에 양끝 속성 비교가 붙는 순간이다. 실측(노드 1,352 ·
+        # 관계 1,830 짜리 작은 그래프):
+        #
+        #     술어 없이      **587 ms**
+        #     양끝에 술어   **87,527 ms**     ← 150배
+        #
+        # 그 87초 때문에 gateway 의 30초 제한에 걸려 **화면에 그래프가 아예 안
+        # 떴다**("그래프를 불러오지 못했어요: Gateway Timeout"). 재 보니 그
+        # 술어가 걸러내는 것은 **0건**이었다(관계 1,830 → 1,830).
+        #
+        # 그래도 **뜻은 버리지 않는다.** 술어가 있던 이유는 검색/분석 시스템
+        # 노드를 API 경계에서 빼기 위해서다. 지금 이 그래프에는 그런 노드가
+        # 없지만 다른 그래프에는 있을 수 있다. 그래서 거르는 일을 **아래
+        # 파이썬 쪽으로 옮겼다** — 노드 질의가 이미 `_owner` 가 맞는 노드를
+        # 전부 가져오므로, 그 id 집합에 양끝이 들어 있는지만 보면 된다.
+        # 왕복도 안 늘고 뜻도 같다.
+        #
+        # ⚠ ISS-57 과 같은 부류다 — Neo4j 에서 멀쩡한 질의가 이 엔진에서 죽는다.
         rel_query = f"""
             MATCH (__cy_a__)-[__cy_r__]->(__cy_b__)
-            WHERE {_analysis_node_predicate('__cy_a__')} AND {_analysis_node_predicate('__cy_b__')}
-            RETURN elementId(__cy_r__) AS relId, 
-                   elementId(__cy_a__) AS startId, 
-                   elementId(__cy_b__) AS endId, 
-                   type(__cy_r__) AS relType, 
+            RETURN elementId(__cy_r__) AS relId,
+                   elementId(__cy_a__) AS startId,
+                   elementId(__cy_b__) AS endId,
+                   type(__cy_r__) AS relType,
                    __cy_r__{{.*{null_projection_suffix}}} AS props
         """
         
@@ -193,9 +214,19 @@ async def fetch_graph_data() -> dict:
                 "Properties": safe_props
             })
         
+        # 관계를 **여기서** 거른다 — 질의에 걸면 150배 느려진다(rel_query 주석).
+        # 노드 질의가 이미 `_owner` 가 맞는 노드를 다 가져왔으므로, 그 id 집합에
+        # 양끝이 들어 있는 관계만 남기면 질의에 술어를 건 것과 뜻이 같다.
+        owned_node_ids = {node["Node ID"] for node in nodes}
+
         relationships = []
         filtered_rel_prop_count = 0
+        skipped_foreign_rels = 0
         for record in rel_result:
+            if (record["startId"] not in owned_node_ids
+                    or record["endId"] not in owned_node_ids):
+                skipped_foreign_rels += 1
+                continue
             raw_props = record.get("props") or {}
             safe_props = _normalize_relationship_properties(record, raw_props)
             filtered_rel_prop_count += max(0, len(raw_props) - len(safe_props))
@@ -208,8 +239,10 @@ async def fetch_graph_data() -> dict:
             })
 
         logger.info(
-            "[GraphAPI] graph payload sanitized | nodes=%d rels=%d vector_keys=%d filtered_node_props=%d filtered_rel_props=%d",
-            len(nodes), len(relationships), len(vector_keys), filtered_node_prop_count, filtered_rel_prop_count
+            "[GraphAPI] graph payload sanitized | nodes=%d rels=%d vector_keys=%d "
+            "filtered_node_props=%d filtered_rel_props=%d skipped_foreign_rels=%d",
+            len(nodes), len(relationships), len(vector_keys),
+            filtered_node_prop_count, filtered_rel_prop_count, skipped_foreign_rels
         )
         
         return {
